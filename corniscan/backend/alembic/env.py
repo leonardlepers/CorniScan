@@ -1,6 +1,7 @@
 """Alembic env.py — configuration async pour CorniScan."""
 
 import asyncio
+import re
 from logging.config import fileConfig
 
 from alembic import context
@@ -13,8 +14,12 @@ from app.models.user import metadata
 # Objet de configuration Alembic (accès à alembic.ini)
 config = context.config
 
-# Surcharger l'URL avec celle lue depuis DATABASE_URL (config pydantic-settings)
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Neon fournit des URLs avec ?sslmode=require (format psycopg2).
+# async_engine_from_config + asyncpg ne comprend pas sslmode= — on le retire.
+_sslmode_match = re.search(r"sslmode=(\w+)", settings.database_url)
+_db_url = re.sub(r"[?&]sslmode=\w+", "", settings.database_url).rstrip("?&")
+_ssl_required = bool(_sslmode_match and _sslmode_match.group(1) in ("require", "verify-ca", "verify-full"))
+config.set_main_option("sqlalchemy.url", _db_url)
 
 # Configurer le logging depuis alembic.ini
 if config.config_file_name is not None:
@@ -45,10 +50,12 @@ def do_run_migrations(connection) -> None:
 
 async def run_migrations_online() -> None:
     """Exécute les migrations en mode "online" (connexion async)."""
+    extra: dict = {"connect_args": {"ssl": True}} if _ssl_required else {}
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        **extra,
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
