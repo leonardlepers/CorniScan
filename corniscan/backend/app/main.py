@@ -1,10 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-import anyio
-from alembic import command as alembic_command
-from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -13,22 +9,15 @@ from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
 from app.routers.scan import router as scan_router
 
-_BACKEND_DIR = Path(__file__).parent.parent
-
-
-def run_migrations() -> None:
-    """Exécute alembic upgrade head via l'API Python Alembic."""
-    alembic_cfg = AlembicConfig(str(_BACKEND_DIR / "alembic.ini"))
-    alembic_command.upgrade(alembic_cfg, "head")
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event — migrations + seed admin au démarrage (Story 1.2)."""
+    """Lifespan event — seed admin au démarrage.
+
+    Les migrations Alembic sont exécutées pendant le build (alembic upgrade head),
+    pas ici, pour éviter tout conflit avec la boucle asyncio d'uvicorn.
+    """
     if settings.database_url:
-        # run_migrations() appelle asyncio.run() via env.py d'Alembic.
-        # On l'exécute dans un thread pour éviter le conflit avec la boucle uvicorn.
-        await anyio.to_thread.run_sync(run_migrations)
         from app.core.database import engine
         from app.core.seed import seed_admin
 

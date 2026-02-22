@@ -11,7 +11,7 @@ services:
     runtime: python
     pythonVersion: "3.11"
     rootDir: corniscan
-    buildCommand: cd frontend && npm install && npm run build && cd ../backend && pip install uv && uv sync
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && pip install uv && uv sync && .venv/bin/alembic upgrade head
     startCommand: cd backend && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: starter
     autoDeploy: true
