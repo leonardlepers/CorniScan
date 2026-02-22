@@ -13,7 +13,7 @@ services:
     pythonVersion: "3.11"
     rootDir: .
     buildCommand: cd frontend && npm install && npm run build && cd ../backend && pip install uv && uv sync
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: cd backend && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: starter
     autoDeploy: true
     envVars:

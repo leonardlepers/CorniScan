@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anyio
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
@@ -25,7 +26,9 @@ def run_migrations() -> None:
 async def lifespan(app: FastAPI):
     """Lifespan event — migrations + seed admin au démarrage (Story 1.2)."""
     if settings.database_url:
-        run_migrations()
+        # run_migrations() appelle asyncio.run() via env.py d'Alembic.
+        # On l'exécute dans un thread pour éviter le conflit avec la boucle uvicorn.
+        await anyio.to_thread.run_sync(run_migrations)
         from app.core.database import engine
         from app.core.seed import seed_admin
 
