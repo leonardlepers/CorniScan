@@ -1,0 +1,27 @@
+# Render Blueprint — CorniScan
+# https://render.com/docs/blueprint-spec
+#
+# Utilisation :
+# 1. Sur Render Dashboard → New → Blueprint → sélectionner le repo GitHub
+# 2. Renseigner les variables d'environnement sensibles (DATABASE_URL, RESEND_API_KEY)
+
+services:
+  - type: web
+    name: corniscan
+    runtime: python
+    pythonVersion: "3.11"
+    rootDir: corniscan
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && pip install uv && uv sync
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+    healthCheckPath: /api/v1/health
