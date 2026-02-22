@@ -3,17 +3,21 @@
  *
  * Story 1.3 : guards requireAuth + toutes les routes principales
  * Story 2.1 : route /admin/users (requireAdmin)
+ * Story 3.4 : route /analyse (requirePhoto) + guard requirePhoto
  *
  * ORDRE DES VÉRIFICATIONS guards (architecture.md) :
  * 1. Route publique (meta.public) → laisser passer
  * 2. Pas de token → redirect /login
  * 3. Route admin + rôle operator → redirect /camera
  * 4. force_password_change + pas sur /change-password → redirect /change-password
+ * 5. requirePhoto + hasPhoto false → redirect /camera
  */
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { useAuthStore } from '@/stores/authStore'
+import { useScanStore } from '@/stores/scanStore'
 import AdminUsersView from '../views/AdminUsersView.vue'
+import AnalyseView from '../views/AnalyseView.vue'
 import CameraView from '../views/CameraView.vue'
 import ChangePasswordView from '../views/ChangePasswordView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -22,6 +26,7 @@ declare module 'vue-router' {
   interface RouteMeta {
     public?: boolean
     requireAdmin?: boolean
+    requirePhoto?: boolean
   }
 }
 
@@ -47,7 +52,6 @@ const router = createRouter({
       path: '/camera',
       name: 'camera',
       component: CameraView,
-      // Logique complète en Story 3.x
     },
     {
       path: '/admin/users',
@@ -55,7 +59,12 @@ const router = createRouter({
       component: AdminUsersView,
       meta: { requireAdmin: true },
     },
-    // TODO Story 3.x: /validation (requireAuth + requirePhoto via scanStore.hasPhoto)
+    {
+      path: '/analyse',
+      name: 'analyse',
+      component: AnalyseView,
+      meta: { requirePhoto: true },
+    },
   ],
 })
 
@@ -90,6 +99,12 @@ router.beforeEach((to) => {
   // 4. force_password_change + pas sur /change-password → redirect /change-password
   if (authStore.user?.force_password_change && to.name !== 'change-password') {
     return { name: 'change-password' }
+  }
+
+  // 5. requirePhoto + hasPhoto false → redirect /camera (Story 3.4)
+  const scanStore = useScanStore()
+  if (to.meta.requirePhoto && !scanStore.hasPhoto) {
+    return { name: 'camera' }
   }
 
   return true
