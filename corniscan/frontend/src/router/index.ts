@@ -4,6 +4,7 @@
  * Story 1.3 : guards requireAuth + toutes les routes principales
  * Story 2.1 : route /admin/users (requireAdmin)
  * Story 3.4 : route /analyse (requirePhoto) + guard requirePhoto
+ * Story 4.5 : route /confirmation (stub FR28)
  *
  * ORDRE DES VÉRIFICATIONS guards (architecture.md) :
  * 1. Route publique (meta.public) → laisser passer
@@ -20,6 +21,7 @@ import AdminUsersView from '../views/AdminUsersView.vue'
 import AnalyseView from '../views/AnalyseView.vue'
 import CameraView from '../views/CameraView.vue'
 import ChangePasswordView from '../views/ChangePasswordView.vue'
+import ConfirmationView from '../views/ConfirmationView.vue'
 import LoginView from '../views/LoginView.vue'
 
 declare module 'vue-router' {
@@ -64,6 +66,11 @@ const router = createRouter({
       name: 'analyse',
       component: AnalyseView,
       meta: { requirePhoto: true },
+    },
+    {
+      path: '/confirmation',
+      name: 'confirmation',
+      component: ConfirmationView,
     },
   ],
 })

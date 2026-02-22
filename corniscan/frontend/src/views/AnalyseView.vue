@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * AnalyseView.vue — Story 4.1 + Story 4.2
+ * AnalyseView.vue — Story 4.1 + Story 4.2 + Story 4.3 + Story 4.4
  *
  * Story 4.1 : soumet la photo à POST /api/v1/scan/process au montage,
  *             affiche spinner pendant le traitement (NFR-P4),
@@ -12,9 +12,13 @@
  * Story 4.3 : saisie épaisseur via ThicknessInput (FR21),
  *             avertissement calibration + retake (FR22, FR23).
  *
- * Stories suivantes :
- *   4.4 — gestion erreurs complète
- *   4.5 — validation et envoi
+ * Story 4.4 : erreur réseau → message FR32 (navigator.onLine),
+ *             erreur traitement → message FR30,
+ *             session + photo préservées (NFR-R2, NFR-R3).
+ *
+ * Story 4.5 : bouton "Valider et envoyer" → POST /scan/submit (FR24),
+ *             bouton désactivé pendant l'envoi (NFR-P4),
+ *             redirect /confirmation sur succès (FR28).
  */
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -29,6 +33,8 @@ const scanStore = useScanStore()
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 const photoUrl = ref<string | null>(null)
+const isSubmitting = ref(false)
+const submitError = ref<string | null>(null)
 
 onMounted(async () => {
   if (!scanStore.photo) {
@@ -48,9 +54,12 @@ onMounted(async () => {
       body: formData,
     })
     scanStore.setResult(result)
-  } catch (e) {
-    error.value =
-      e instanceof Error ? e.message : "Erreur lors de l'analyse. Veuillez recommencer."
+  } catch {
+    // FR32 : réseau absent → message spécifique
+    // FR30 : erreur traitement (serveur, parse, etc.)
+    error.value = !navigator.onLine
+      ? 'Connexion réseau absente. Vérifiez votre WiFi ou 4G avant de réessayer.'
+      : "Une erreur est survenue lors de l'analyse. Recommencez la photo."
   } finally {
     isLoading.value = false
   }
@@ -65,6 +74,33 @@ onUnmounted(() => {
 function handleRetake(): void {
   scanStore.clearResult()
   router.push({ name: 'camera' })
+}
+
+async function handleSubmit(): Promise<void> {
+  if (isSubmitting.value || !scanStore.photo) return
+  isSubmitting.value = true
+  submitError.value = null
+
+  const formData = new FormData()
+  formData.append('file', scanStore.photo)
+  formData.append('contour_points', JSON.stringify(scanStore.contour))
+  formData.append('width_mm', String(scanStore.dimensions?.width_mm ?? 0))
+  formData.append('height_mm', String(scanStore.dimensions?.height_mm ?? 0))
+  if (scanStore.thickness !== null) {
+    formData.append('thickness', String(scanStore.thickness))
+  }
+  formData.append('calibration_warning', String(scanStore.calibrationWarning))
+
+  try {
+    await apiCall('/api/v1/scan/submit', { method: 'POST', body: formData })
+    router.push({ name: 'confirmation' })
+  } catch {
+    submitError.value = !navigator.onLine
+      ? 'Connexion réseau absente. Vérifiez votre WiFi ou 4G avant de réessayer.'
+      : "Erreur lors de l'envoi. Veuillez réessayer."
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -108,7 +144,16 @@ function handleRetake(): void {
         :calibration-warning="scanStore.calibrationWarning"
         @update:thickness="scanStore.setThickness($event)"
         @retake="handleRetake"
+        @force-send="handleSubmit"
       />
+
+      <!-- Erreur d'envoi (Story 4.5) -->
+      <p v-if="submitError" class="submit-error">{{ submitError }}</p>
+
+      <!-- Bouton validation finale (Story 4.5 — FR24) -->
+      <button class="submit-btn" :disabled="isSubmitting" @click="handleSubmit">
+        {{ isSubmitting ? 'Envoi en cours…' : 'Valider et envoyer' }}
+      </button>
     </div>
   </div>
 </template>
@@ -204,5 +249,30 @@ function handleRetake(): void {
   font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.submit-error {
+  color: #f87171;
+  font-size: 0.9rem;
+  text-align: center;
+  max-width: 360px;
+}
+
+.submit-btn {
+  padding: 0.875rem 2rem;
+  background: #fff;
+  color: #111;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  max-width: 360px;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

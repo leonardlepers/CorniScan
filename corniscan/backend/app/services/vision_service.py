@@ -1,5 +1,5 @@
 """
-vision_service.py — Story 3.2 + Story 4.1
+vision_service.py — Story 3.2 + Story 4.1 + Story 5.2
 
 Détection de carte bancaire et pipeline d'analyse complet.
 Exécuté de manière synchrone (appelé via thread pool depuis FastAPI).
@@ -266,3 +266,35 @@ def process_image(image_bytes: bytes) -> dict:
         },
         "calibration_warning": calibration_warning,
     }
+
+
+def generate_contour_png(image_bytes: bytes, contour_points: list[list[float]]) -> bytes:
+    """Génère un PNG avec le contour du joint superposé sur l'image originale (Story 5.2 — FR26).
+
+    Args:
+        image_bytes: Bytes JPEG de l'image originale.
+        contour_points: Points du contour normalisés [[x, y], ...] avec x,y ∈ [0,1].
+
+    Returns:
+        Bytes PNG de l'image avec le contour tracé en vert.
+
+    Raises:
+        ValueError: Si l'image ne peut pas être décodée.
+    """
+    arr = np.frombuffer(image_bytes, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        raise ValueError("Image invalide — impossible de décoder le JPEG.")
+
+    h, w = img.shape[:2]
+    pts = np.array(
+        [[int(pt[0] * w), int(pt[1] * h)] for pt in contour_points],
+        dtype=np.int32,
+    )
+
+    overlay = img.copy()
+    cv2.polylines(overlay, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+
+    _, encoded = cv2.imencode(".png", overlay)
+    return encoded.tobytes()

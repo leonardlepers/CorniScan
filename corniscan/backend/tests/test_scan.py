@@ -1,4 +1,4 @@
-"""Tests Story 3.2 + Story 4.1 — POST /api/v1/scan/detect-card + /process + vision_service."""
+"""Tests Story 3.2 + Story 4.1 + Story 4.5 — POST /api/v1/scan/detect-card + /process + /submit + vision_service."""
 
 import io
 from unittest.mock import MagicMock, patch
@@ -242,6 +242,100 @@ def test_process_endpoint_returns_422_on_invalid_bytes(client: TestClient) -> No
     response = client.post(
         "/api/v1/scan/process",
         files={"file": ("photo.jpg", io.BytesIO(b"not-an-image"), "image/jpeg")},
+        headers=_auth_header(),
+    )
+    assert response.status_code == 422
+
+
+# ── Tests POST /api/v1/scan/submit (Story 4.5) ───────────────────────────────
+
+
+@pytest.fixture()
+def mock_email(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Neutralise l'appel Resend dans le routeur submit."""
+    mock = MagicMock()
+    monkeypatch.setattr("app.routers.scan.send_scan_email", mock)
+    return mock
+
+
+def _submit_payload(jpeg_bytes: bytes, *, calibration_warning: bool = False, thickness: float | None = None) -> dict:
+    """Construit le payload multipart pour POST /submit."""
+    import json as _json
+
+    data = {
+        "contour_points": _json.dumps([[0.1, 0.2], [0.9, 0.2], [0.9, 0.8], [0.1, 0.8]]),
+        "width_mm": "30.5",
+        "height_mm": "20.0",
+        "calibration_warning": str(calibration_warning).lower(),
+    }
+    if thickness is not None:
+        data["thickness"] = str(thickness)
+    return {
+        "files": {"file": ("photo.jpg", io.BytesIO(jpeg_bytes), "image/jpeg")},
+        "data": data,
+    }
+
+
+def test_submit_endpoint_returns_200_accepted(client: TestClient, mock_email: MagicMock) -> None:
+    """AC#1 — Payload valide → 200 + {"status": "accepted"}."""
+    payload = _submit_payload(_make_jpeg())
+    response = client.post(
+        "/api/v1/scan/submit",
+        files=payload["files"],
+        data=payload["data"],
+        headers=_auth_header(),
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "accepted"}
+
+
+def test_submit_endpoint_requires_auth(client: TestClient) -> None:
+    """AC#1 — Sans token → 401."""
+    payload = _submit_payload(_make_jpeg())
+    response = client.post(
+        "/api/v1/scan/submit",
+        files=payload["files"],
+        data=payload["data"],
+    )
+    assert response.status_code == 401
+
+
+def test_submit_endpoint_accepts_calibration_warning_true(client: TestClient, mock_email: MagicMock) -> None:
+    """AC#2 — calibration_warning = true accepté sans erreur."""
+    payload = _submit_payload(_make_jpeg(), calibration_warning=True)
+    response = client.post(
+        "/api/v1/scan/submit",
+        files=payload["files"],
+        data=payload["data"],
+        headers=_auth_header(),
+    )
+    assert response.status_code == 200
+
+
+def test_submit_endpoint_accepts_thickness(client: TestClient, mock_email: MagicMock) -> None:
+    """AC#1 — thickness optionnel transmis."""
+    payload = _submit_payload(_make_jpeg(), thickness=2.5)
+    response = client.post(
+        "/api/v1/scan/submit",
+        files=payload["files"],
+        data=payload["data"],
+        headers=_auth_header(),
+    )
+    assert response.status_code == 200
+
+
+def test_submit_endpoint_returns_422_on_invalid_contour(client: TestClient) -> None:
+    """AC#1 — contour_points JSON invalide → 422."""
+    jpeg_bytes = _make_jpeg()
+    response = client.post(
+        "/api/v1/scan/submit",
+        files={"file": ("photo.jpg", io.BytesIO(jpeg_bytes), "image/jpeg")},
+        data={
+            "contour_points": "not-json",
+            "width_mm": "30.5",
+            "height_mm": "20.0",
+            "calibration_warning": "false",
+        },
         headers=_auth_header(),
     )
     assert response.status_code == 422

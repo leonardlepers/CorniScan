@@ -1,6 +1,6 @@
 # Story 4.3: Saisie de l'épaisseur et gestion de l'avertissement de calibration
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -22,10 +22,10 @@ So that je fournis une information complète et peux décider de la suite si la 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: `scanStore.ts` — `thickness` + `setThickness()` + `clearResult()` inclut thickness (AC: #1)
-- [ ] Task 2: `ThicknessInput.vue` — input numérique + avertissement calibration + boutons (AC: #1, #2, #3, #5)
-- [ ] Task 3: `AnalyseView.vue` — `<ThicknessInput>` + `handleRetake()` (AC: #4)
-- [ ] Task 4: Tests — scanStore + `ThicknessInput.spec.ts` (nouveau) + AnalyseView Story 4.3 (AC: #1–5)
+- [x] Task 1: `scanStore.ts` — `thickness` + `setThickness()` + `clearResult()` inclut thickness (AC: #1)
+- [x] Task 2: `ThicknessInput.vue` — input numérique + avertissement calibration + boutons (AC: #1, #2, #3, #5)
+- [x] Task 3: `AnalyseView.vue` — `<ThicknessInput>` + `handleRetake()` (AC: #4)
+- [x] Task 4: Tests — scanStore + `ThicknessInput.spec.ts` (nouveau) + AnalyseView Story 4.3 (AC: #1–5)
 
 ## Dev Notes
 
@@ -66,7 +66,9 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
-(à compléter)
+- 116/116 tests frontend GREEN
+- ThicknessInput mocké dans AnalyseView.spec.ts pour isoler les tests de la vue
+- `force-send` wired en Story 4.5 (emit reçu mais non géré dans AnalyseView pour l'instant)
 
 ### Change Log
 

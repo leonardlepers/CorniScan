@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str = ""
     jwt_secret: str = "dev-secret-CHANGE-IN-PRODUCTION"
     resend_api_key: str = ""
+    resend_from_email: str = "corniscan@cornille-sa.com"
     environment: str = "development"
 
 

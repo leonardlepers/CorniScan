@@ -6,6 +6,7 @@ import CardDetectionOverlay from '@/components/camera/CardDetectionOverlay.vue'
 import CaptureChecklist from '@/components/camera/CaptureChecklist.vue'
 import { useCardDetection } from '@/composables/useCardDetection'
 import { useMediaDevices } from '@/composables/useMediaDevices'
+import { usePwaInstall } from '@/composables/usePwaInstall'
 import { useScanStore } from '@/stores/scanStore'
 
 const route = useRoute()
@@ -18,6 +19,9 @@ const showForbiddenAlert = ref(route.query.forbidden === '1')
 function dismissAlert() {
   showForbiddenAlert.value = false
 }
+
+// Story 6.2 — invite installation PWA (Android)
+const { isInstallable, promptInstall } = usePwaInstall()
 
 // Story 3.1 — flux caméra
 const { videoRef, isLoading, error, startCamera, stopCamera } = useMediaDevices()
@@ -101,6 +105,12 @@ async function retakePhoto(): Promise<void> {
   <div class="camera-page">
     <AppHeader />
 
+    <!-- Story 6.2 — bannière installation PWA (Android Chrome) -->
+    <div v-if="isInstallable" class="install-banner">
+      <span class="install-text">Installez CorniScan sur votre écran d'accueil</span>
+      <button class="install-btn" @click="promptInstall">Installer</button>
+    </div>
+
     <!-- Alerte accès refusé (Story 2.4) -->
     <div
       v-if="showForbiddenAlert"
@@ -183,6 +193,34 @@ async function retakePhoto(): Promise<void> {
   overflow: hidden;
   background: #000;
   font-family: sans-serif;
+}
+
+.install-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1a237e;
+  color: #fff;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  gap: 0.75rem;
+}
+
+.install-text {
+  flex: 1;
+}
+
+.install-btn {
+  background: #fff;
+  color: #1a237e;
+  border: none;
+  border-radius: 4px;
+  padding: 0.35rem 0.875rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .forbidden-alert {

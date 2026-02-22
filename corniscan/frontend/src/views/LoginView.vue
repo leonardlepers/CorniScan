@@ -2,9 +2,12 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useIosInstallGuide } from '@/composables/useIosInstallGuide'
+import IosInstallGuide from '@/components/IosInstallGuide.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const { showGuide, checkAndShow, dismissGuide } = useIosInstallGuide()
 
 const username = ref('')
 const password = ref('')
@@ -12,6 +15,8 @@ const password = ref('')
 async function handleSubmit() {
   try {
     const user = await authStore.login(username.value, password.value)
+    // Story 6.3 — guide installation iOS au premier login réussi (FR34)
+    checkAndShow()
     if (user.force_password_change) {
       router.push('/change-password')
     } else {
@@ -24,6 +29,9 @@ async function handleSubmit() {
 </script>
 
 <template>
+  <!-- Story 6.3 — Guide iOS (affiché après login réussi si conditions remplies) -->
+  <IosInstallGuide v-if="showGuide" @dismiss="dismissGuide" />
+
   <main class="login-page">
     <div class="login-card">
       <h1>CorniScan</h1>

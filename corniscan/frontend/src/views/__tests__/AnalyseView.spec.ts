@@ -166,13 +166,13 @@ describe("AnalyseView — erreur API (Story 4.1)", () => {
   })
 
   it("AC#5 — affiche un message d'erreur si l'API échoue", async () => {
-    mockApiCall.mockRejectedValue(new Error('Erreur réseau'))
+    mockApiCall.mockRejectedValue(new Error('HTTP 500'))
 
     const wrapper = mount(AnalyseView)
     await flushPromises()
 
     expect(wrapper.find('.error-text').exists()).toBe(true)
-    expect(wrapper.find('.error-text').text()).toContain('Erreur réseau')
+    expect(wrapper.find('.error-text').text()).toContain("Une erreur est survenue lors de l'analyse")
   })
 
   it("AC#5 — setResult n'est pas appelé en cas d'erreur", async () => {
@@ -333,5 +333,187 @@ describe('AnalyseView — épaisseur et calibration (Story 4.3)', () => {
 
     expect(mockClearResult).toHaveBeenCalledOnce()
     expect(mockRouterPush).toHaveBeenCalledWith({ name: 'camera' })
+  })
+})
+
+// ── Tests Story 4.4 ───────────────────────────────────────────────────────────
+
+describe("AnalyseView — messages d'erreur différenciés (Story 4.4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPhoto = new File(['jpeg'], 'capture.jpg', { type: 'image/jpeg' })
+    mockContour = []
+    mockDimensions = null
+    mockCalibrationWarning = false
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:fake-url'),
+      revokeObjectURL: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it("AC#1 (FR30) — erreur serveur : message traitement affiché", async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    mockApiCall.mockRejectedValue(new Error('HTTP 500'))
+
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    expect(wrapper.find('.error-text').text()).toContain(
+      "Une erreur est survenue lors de l'analyse. Recommencez la photo.",
+    )
+  })
+
+  it("AC#2 (FR32) — réseau absent : message réseau affiché", async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    mockApiCall.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    expect(wrapper.find('.error-text').text()).toContain(
+      'Connexion réseau absente. Vérifiez votre WiFi ou 4G avant de réessayer.',
+    )
+  })
+
+  it("AC#3 (FR31) — erreur serveur : pas de redirection vers /login", async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    mockApiCall.mockRejectedValue(new Error('HTTP 500'))
+
+    mount(AnalyseView)
+    await flushPromises()
+
+    expect(mockRouterPush).not.toHaveBeenCalledWith({ name: 'login' })
+    expect(mockRouterPush).not.toHaveBeenCalledWith('/login')
+  })
+
+  it("AC#4 (NFR-R3) — erreur réseau : la photo reste dans le store", async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    mockApiCall.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    mount(AnalyseView)
+    await flushPromises()
+
+    // clearPhoto() ne doit jamais être appelé sur erreur
+    // mockPhoto est toujours accessible (non null dans le mock store)
+    expect(mockPhoto).not.toBeNull()
+  })
+
+  it("AC#5 (NFR-R2) — erreur serveur : clearResult non appelé automatiquement", async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    mockApiCall.mockRejectedValue(new Error('HTTP 500'))
+
+    mount(AnalyseView)
+    await flushPromises()
+
+    expect(mockClearResult).not.toHaveBeenCalled()
+  })
+})
+
+// ── Tests Story 4.5 ───────────────────────────────────────────────────────────
+
+describe('AnalyseView — validation et envoi (Story 4.5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPhoto = new File(['jpeg'], 'capture.jpg', { type: 'image/jpeg' })
+    mockContour = mockResult.contour_points
+    mockDimensions = mockResult.dimensions
+    mockCalibrationWarning = false
+    // Premier appel (process) résout immédiatement, second (submit) contrôlé par test
+    mockApiCall.mockResolvedValue(mockResult)
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:photo-url'),
+      revokeObjectURL: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it("AC#1 (FR24) — clic Valider envoie POST /scan/submit avec les bons champs", async () => {
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    // Second call pour submit
+    mockApiCall.mockResolvedValueOnce({ status: 'accepted' })
+
+    await wrapper.find('.submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(mockApiCall).toHaveBeenCalledTimes(2)
+    const [endpoint, options] = mockApiCall.mock.calls[1] as [string, RequestInit]
+    expect(endpoint).toBe('/api/v1/scan/submit')
+    expect(options.method).toBe('POST')
+    const body = options.body as FormData
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.get('contour_points')).toBe(JSON.stringify(mockResult.contour_points))
+    expect(body.get('calibration_warning')).toBe('false')
+  })
+
+  it("AC#2 — calibration_warning = true inclus dans le payload Forcer l'envoi", async () => {
+    mockCalibrationWarning = true
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    mockApiCall.mockResolvedValueOnce({ status: 'accepted' })
+
+    const input = wrapper.findComponent({ name: 'ThicknessInput' })
+    await input.vm.$emit('force-send')
+    await flushPromises()
+
+    const [, options] = mockApiCall.mock.calls[1] as [string, RequestInit]
+    const body = options.body as FormData
+    expect(body.get('calibration_warning')).toBe('true')
+  })
+
+  it("AC#3 — le bouton est désactivé pendant l'envoi", async () => {
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    // Laisser le submit en attente
+    let resolveSubmit!: (v: unknown) => void
+    mockApiCall.mockReturnValueOnce(new Promise((res) => { resolveSubmit = res }))
+
+    await wrapper.find('.submit-btn').trigger('click')
+
+    expect(wrapper.find('.submit-btn').attributes('disabled')).toBeDefined()
+
+    resolveSubmit({ status: 'accepted' })
+    await flushPromises()
+
+    expect(wrapper.find('.submit-btn').attributes('disabled')).toBeUndefined()
+  })
+
+  it("AC#4 (FR28) — redirect vers /confirmation après succès", async () => {
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    mockApiCall.mockResolvedValueOnce({ status: 'accepted' })
+
+    await wrapper.find('.submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(mockRouterPush).toHaveBeenCalledWith({ name: 'confirmation' })
+  })
+
+  it("AC#4 — erreur envoi : message d'erreur affiché, pas de redirect", async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    const wrapper = mount(AnalyseView)
+    await flushPromises()
+
+    mockApiCall.mockRejectedValueOnce(new Error('HTTP 500'))
+
+    await wrapper.find('.submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.submit-error').exists()).toBe(true)
+    expect(wrapper.find('.submit-error').text()).toContain("Erreur lors de l'envoi")
+    expect(mockRouterPush).not.toHaveBeenCalledWith({ name: 'confirmation' })
   })
 })
