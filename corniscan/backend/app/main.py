@@ -1,5 +1,8 @@
+import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -9,15 +12,40 @@ from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
 from app.routers.scan import router as scan_router
 
+_BACKEND_DIR = Path(__file__).parent.parent
+_logger = logging.getLogger("uvicorn")
+
+
+async def _run_migrations() -> None:
+    """Lance alembic upgrade head dans un sous-processus async.
+
+    asyncio.run() dans alembic/env.py est incompatible avec la boucle uvicorn.
+    asyncio.create_subprocess_exec() crée un processus fils indépendant —
+    aucun conflit d'event loop, sortie capturée pour les logs.
+    """
+    alembic_bin = _BACKEND_DIR / ".venv" / "bin" / "alembic"
+    proc = await asyncio.create_subprocess_exec(
+        str(alembic_bin),
+        "upgrade",
+        "head",
+        cwd=str(_BACKEND_DIR),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    output = stdout.decode(errors="replace") if stdout else ""
+    if output.strip():
+        _logger.info("Alembic:\n%s", output.strip())
+    if proc.returncode != 0:
+        raise RuntimeError(f"alembic upgrade head a échoué (code {proc.returncode})")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event — seed admin au démarrage.
-
-    Les migrations Alembic sont exécutées pendant le build (alembic upgrade head),
-    pas ici, pour éviter tout conflit avec la boucle asyncio d'uvicorn.
-    """
+    """Lifespan event — migrations + seed admin au démarrage."""
     if settings.database_url:
+        await _run_migrations()
+
         from app.core.database import engine
         from app.core.seed import seed_admin
 
