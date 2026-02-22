@@ -1,0 +1,28 @@
+# Render Blueprint — CorniScan
+# https://render.com/docs/blueprint-spec
+#
+# Utilisation :
+# 1. Pousser ce fichier sur GitHub dans le repo 'corniscan'
+# 2. Sur Render Dashboard → New → Blueprint → sélectionner le repo
+# 3. Renseigner les valeurs des variables d'environnement sensibles
+
+services:
+  - type: web
+    name: corniscan
+    runtime: python
+    pythonVersion: "3.11"
+    rootDir: .
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && pip install uv && uv sync
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: JWT_SECRET
+        generateValue: true          # Render génère automatiquement une valeur sécurisée
+      - key: DATABASE_URL
+        sync: false                  # À renseigner manuellement (Neon — Story 1.2)
+      - key: RESEND_API_KEY
+        sync: false                  # À renseigner manuellement (Story 5.x)
+    healthCheckPath: /api/v1/health
