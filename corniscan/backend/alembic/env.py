@@ -1,8 +1,8 @@
 """Alembic env.py — configuration async pour CorniScan."""
 
 import asyncio
-import re
 from logging.config import fileConfig
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from alembic import context
 from sqlalchemy import pool
@@ -14,11 +14,19 @@ from app.models.user import metadata
 # Objet de configuration Alembic (accès à alembic.ini)
 config = context.config
 
-# Neon fournit des URLs avec ?sslmode=require (format psycopg2).
-# async_engine_from_config + asyncpg ne comprend pas sslmode= — on le retire.
-_sslmode_match = re.search(r"sslmode=(\w+)", settings.database_url)
-_db_url = re.sub(r"[?&]sslmode=\w+", "", settings.database_url).rstrip("?&")
-_ssl_required = bool(_sslmode_match and _sslmode_match.group(1) in ("require", "verify-ca", "verify-full"))
+# Neon fournit des URLs avec ?sslmode=require&channel_binding=require (libpq).
+# async_engine_from_config + asyncpg ne comprend pas ces paramètres — on les
+# retire proprement via urllib.parse pour ne pas corrompre le nom de la base.
+_LIBPQ_ONLY = {"sslmode", "channel_binding", "connect_timeout", "options"}
+
+_parsed = urlparse(settings.database_url)
+_params = parse_qs(_parsed.query, keep_blank_values=True)
+_sslmode = _params.pop("sslmode", [None])[0]
+_ssl_required = _sslmode in ("require", "verify-ca", "verify-full")
+for _p in _LIBPQ_ONLY - {"sslmode"}:
+    _params.pop(_p, None)
+_db_url = urlunparse(_parsed._replace(query=urlencode({k: v[0] for k, v in _params.items()})))
+
 config.set_main_option("sqlalchemy.url", _db_url)
 
 # Configurer le logging depuis alembic.ini
