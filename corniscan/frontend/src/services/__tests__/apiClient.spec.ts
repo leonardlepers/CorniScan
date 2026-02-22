@@ -85,7 +85,7 @@ describe('apiClient — Story 1.3', () => {
     const { apiCall } = await import('../apiClient')
     await apiCall('/api/v1/admin/users')
 
-    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!
     const headers = callArgs[1]?.headers as Record<string, string>
     expect(headers['Authorization']).toBe('Bearer my-jwt-token')
   })
@@ -100,7 +100,7 @@ describe('apiClient — Story 1.3', () => {
     const { apiCall } = await import('../apiClient')
     await apiCall('/api/v1/health')
 
-    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!
     const headers = callArgs[1]?.headers as Record<string, string>
     expect(headers['Authorization']).toBeUndefined()
   })

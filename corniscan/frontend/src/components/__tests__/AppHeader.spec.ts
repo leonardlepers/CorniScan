@@ -27,7 +27,7 @@ describe('AppHeader — séparation des rôles (Story 2.4)', () => {
     mockUseAuthStore.mockReturnValue({
       user: { username: 'admin', role: 'admin', force_password_change: false },
       logout: vi.fn(),
-    } as ReturnType<typeof useAuthStore>)
+    } as unknown as ReturnType<typeof useAuthStore>)
 
     const wrapper = mount(AppHeader)
     await flushPromises()
@@ -40,7 +40,7 @@ describe('AppHeader — séparation des rôles (Story 2.4)', () => {
     mockUseAuthStore.mockReturnValue({
       user: { username: 'alice', role: 'operator', force_password_change: false },
       logout: vi.fn(),
-    } as ReturnType<typeof useAuthStore>)
+    } as unknown as ReturnType<typeof useAuthStore>)
 
     const wrapper = mount(AppHeader)
     await flushPromises()
@@ -52,7 +52,7 @@ describe('AppHeader — séparation des rôles (Story 2.4)', () => {
     mockUseAuthStore.mockReturnValue({
       user: { username: 'alice', role: 'operator', force_password_change: false },
       logout: vi.fn(),
-    } as ReturnType<typeof useAuthStore>)
+    } as unknown as ReturnType<typeof useAuthStore>)
 
     const wrapper = mount(AppHeader)
     expect(wrapper.find('.btn-logout').exists()).toBe(true)
@@ -63,7 +63,7 @@ describe('AppHeader — séparation des rôles (Story 2.4)', () => {
     mockUseAuthStore.mockReturnValue({
       user: { username: 'alice', role: 'operator', force_password_change: false },
       logout: mockLogout,
-    } as ReturnType<typeof useAuthStore>)
+    } as unknown as ReturnType<typeof useAuthStore>)
 
     const wrapper = mount(AppHeader)
     await wrapper.find('.btn-logout').trigger('click')

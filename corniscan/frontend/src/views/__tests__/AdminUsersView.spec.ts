@@ -51,10 +51,10 @@ describe('AdminUsersView', () => {
     const rows = wrapper.findAll('tbody tr')
     expect(rows).toHaveLength(2)
 
-    const firstRow = rows[0].findAll('td')
-    expect(firstRow[0].text()).toBe('admin')
-    expect(firstRow[1].text()).toBe('admin')
-    expect(firstRow[2].text()).toBe('Actif')
+    const firstRow = rows[0]!.findAll('td')
+    expect(firstRow[0]!.text()).toBe('admin')
+    expect(firstRow[1]!.text()).toBe('admin')
+    expect(firstRow[2]!.text()).toBe('Actif')
   })
 
   it('AC#2 — le compte admin apparaît avec rôle admin clairement identifié', async () => {
@@ -221,7 +221,7 @@ describe('AdminUsersView — désactivation (Story 2.3)', () => {
     // La ligne de alice (opérateur actif) doit avoir le bouton
     const buttons = wrapper.findAll('.btn-deactivate')
     expect(buttons).toHaveLength(1)
-    expect(buttons[0].text()).toBe('Désactiver')
+    expect(buttons[0]!.text()).toBe('Désactiver')
   })
 
   it('AC#4 — bouton Désactiver absent pour le propre compte admin', async () => {

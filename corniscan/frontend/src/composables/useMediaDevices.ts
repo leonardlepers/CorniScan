@@ -43,7 +43,8 @@ export function useMediaDevices() {
 
       // AC#2 — portrait lock (best-effort : ignore si non supporté)
       try {
-        await screen.orientation.lock('portrait')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (screen.orientation as any).lock('portrait')
       } catch {
         // desktop et navigateurs non supportants : silencieux
       }

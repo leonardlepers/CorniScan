@@ -91,7 +91,7 @@ describe('CameraView — message accès refusé (Story 2.4)', () => {
   })
 
   it('AC#1 — affiche le message forbidden si ?forbidden=1 dans la query', () => {
-    mockUseRoute.mockReturnValue({ query: { forbidden: '1' } } as ReturnType<typeof useRoute>)
+    mockUseRoute.mockReturnValue({ query: { forbidden: '1' } } as unknown as ReturnType<typeof useRoute>)
 
     const wrapper = mount(CameraView)
 
@@ -100,7 +100,7 @@ describe('CameraView — message accès refusé (Story 2.4)', () => {
   })
 
   it("AC#1 — n'affiche pas le message forbidden si la query est absente", () => {
-    mockUseRoute.mockReturnValue({ query: {} } as ReturnType<typeof useRoute>)
+    mockUseRoute.mockReturnValue({ query: {} } as unknown as ReturnType<typeof useRoute>)
 
     const wrapper = mount(CameraView)
 
@@ -108,7 +108,7 @@ describe('CameraView — message accès refusé (Story 2.4)', () => {
   })
 
   it('AC#1 — le message forbidden peut être fermé', async () => {
-    mockUseRoute.mockReturnValue({ query: { forbidden: '1' } } as ReturnType<typeof useRoute>)
+    mockUseRoute.mockReturnValue({ query: { forbidden: '1' } } as unknown as ReturnType<typeof useRoute>)
 
     const wrapper = mount(CameraView)
     await wrapper.find('.dismiss-btn').trigger('click')
@@ -120,7 +120,7 @@ describe('CameraView — message accès refusé (Story 2.4)', () => {
 describe('CameraView — flux caméra (Story 3.1)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseRoute.mockReturnValue({ query: {} } as ReturnType<typeof useRoute>)
+    mockUseRoute.mockReturnValue({ query: {} } as unknown as ReturnType<typeof useRoute>)
     mockIsLoading.value = false
     mockError.value = null
     mockCardDetected.value = false
@@ -178,7 +178,7 @@ describe('CameraView — flux caméra (Story 3.1)', () => {
 describe('CameraView — checklist qualité (Story 3.3)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseRoute.mockReturnValue({ query: {} } as ReturnType<typeof useRoute>)
+    mockUseRoute.mockReturnValue({ query: {} } as unknown as ReturnType<typeof useRoute>)
     mockIsLoading.value = false
     mockError.value = null
     mockCardDetected.value = false
@@ -239,7 +239,7 @@ describe('CameraView — capture photo (Story 3.4)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseRoute.mockReturnValue({ query: {} } as ReturnType<typeof useRoute>)
+    mockUseRoute.mockReturnValue({ query: {} } as unknown as ReturnType<typeof useRoute>)
     mockIsLoading.value = false
     mockError.value = null
     mockCardDetected.value = false

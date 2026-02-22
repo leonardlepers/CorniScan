@@ -18,7 +18,8 @@ export interface User {
 function decodeTokenPayload(token: string): User | null {
   try {
     // Format JWT : header.payload.signature — payload est en base64url
-    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const b64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/')
+    if (!b64) return null
     const payload = JSON.parse(atob(b64))
     return {
       username: payload.sub,

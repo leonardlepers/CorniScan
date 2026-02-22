@@ -15,8 +15,8 @@ describe('CaptureChecklist (Story 3.3)', () => {
 
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
     expect(checkboxes).toHaveLength(2)
-    expect((checkboxes[0].element as HTMLInputElement).checked).toBe(false)
-    expect((checkboxes[1].element as HTMLInputElement).checked).toBe(false)
+    expect((checkboxes[0]!.element as HTMLInputElement).checked).toBe(false)
+    expect((checkboxes[1]!.element as HTMLInputElement).checked).toBe(false)
 
     expect(wrapper.text()).toContain('Joint propre')
     expect(wrapper.text()).toContain('Carte entièrement visible')
@@ -34,7 +34,7 @@ describe('CaptureChecklist (Story 3.3)', () => {
     const wrapper = mount(CaptureChecklist)
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
 
-    await checkboxes[0].setValue(true)
+    await checkboxes[0]!.setValue(true)
 
     const emissions = wrapper.emitted('update:allChecked') as boolean[][]
     expect(emissions[emissions.length - 1]).toEqual([false])
@@ -44,8 +44,8 @@ describe('CaptureChecklist (Story 3.3)', () => {
     const wrapper = mount(CaptureChecklist)
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
 
-    await checkboxes[0].setValue(true)
-    await checkboxes[1].setValue(true)
+    await checkboxes[0]!.setValue(true)
+    await checkboxes[1]!.setValue(true)
 
     const emissions = wrapper.emitted('update:allChecked') as boolean[][]
     expect(emissions[emissions.length - 1]).toEqual([true])
@@ -55,10 +55,10 @@ describe('CaptureChecklist (Story 3.3)', () => {
     const wrapper = mount(CaptureChecklist)
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
 
-    await checkboxes[0].setValue(true)
-    await checkboxes[1].setValue(true)
+    await checkboxes[0]!.setValue(true)
+    await checkboxes[1]!.setValue(true)
     // Décocher une case
-    await checkboxes[0].setValue(false)
+    await checkboxes[0]!.setValue(false)
 
     const emissions = wrapper.emitted('update:allChecked') as boolean[][]
     expect(emissions[emissions.length - 1]).toEqual([false])
