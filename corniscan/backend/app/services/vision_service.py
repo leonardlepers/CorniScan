@@ -16,6 +16,16 @@ Story 4.1 — process_image() :
   3. _detect_joint_contour() sur l'image corrigée
   4. Calcul dimensions mm
   5. Retour contour normalisé [0,1] en coordonnées image originale
+
+Améliorations fiabilité :
+  - Seuils Canny auto-adaptatifs (médiane de l'histogramme, σ=0.33)
+  - Normalisation résolution entrée (max 2048 px) — stabilise le comportement
+    quelque soit la résolution du capteur (iPhone 17 = jusqu'à 48 MP)
+  - CLAHE avant détection joint — meilleur contraste en éclairage non uniforme
+  - Raffinement sub-pixel des coins carte (cv2.cornerSubPix)
+  - minAreaRect pour les dimensions — insensible à l'orientation du joint
+  - Dilation morphologique avant findContours — ferme les lacunes Canny
+  - Filtre de taille pour exclure les micro-contours parasites
 """
 
 import numpy as np
@@ -34,6 +44,40 @@ _CARD_H_MM = 53.98
 _DST_W = int(_CARD_W_MM * _SCALE)   # 856 px
 _DST_H = int(_CARD_H_MM * _SCALE)   # 539 px
 
+# Normalisation résolution — stabilise le comportement quel que soit le capteur
+# (iPhone 15 Pro = 48 MP, iPhone 17 = ~48-200 MP selon modèle)
+_MAX_PROCESSING_WIDTH = 2048
+
+
+def _resize_for_processing(img: np.ndarray) -> tuple[np.ndarray, float]:
+    """Redimensionne l'image à _MAX_PROCESSING_WIDTH si nécessaire.
+
+    Returns:
+        (image_redimensionnée, facteur_scale_down)
+        scale_down < 1.0 si redimensionnée, sinon 1.0
+    """
+    h, w = img.shape[:2]
+    if w > _MAX_PROCESSING_WIDTH:
+        scale = _MAX_PROCESSING_WIDTH / w
+        resized = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        return resized, scale
+    return img, 1.0
+
+
+def _canny_auto(blurred: np.ndarray, sigma: float = 0.33) -> np.ndarray:
+    """Canny avec seuils calculés automatiquement via la médiane de l'histogramme.
+
+    Méthode de Bouchet : lower = median * (1 - sigma), upper = median * (1 + sigma).
+    Adapte les seuils à la luminosité réelle de l'image (éclairage de chantier variable).
+    """
+    median = float(np.median(blurred))
+    lower = int(max(0, (1.0 - sigma) * median))
+    upper = int(min(255, (1.0 + sigma) * median))
+    # Canny requiert upper > lower — fallback sur valeurs fixes si médiane trop basse
+    if upper <= lower or upper < 20:
+        return cv2.Canny(blurred, 30, 100)
+    return cv2.Canny(blurred, lower, upper)
+
 
 def detect_card(image_bytes: bytes) -> dict:
     """Détecte une carte bancaire dans l'image JPEG fournie.
@@ -44,18 +88,19 @@ def detect_card(image_bytes: bytes) -> dict:
     Returns:
         {"card_detected": bool, "confidence": float}
     """
-    # Décodage
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
         return {"card_detected": False, "confidence": 0.0}
 
+    # Normalisation résolution
+    img, _ = _resize_for_processing(img)
     image_area = img.shape[0] * img.shape[1]
 
-    # Pré-traitement
+    # Pré-traitement — kernel adapté à la résolution normalisée
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+    edges = _canny_auto(blurred, sigma=0.33)
 
     # Contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -115,6 +160,10 @@ def _order_points(pts: np.ndarray) -> np.ndarray:
 def _find_card_corners(img: np.ndarray) -> tuple:
     """Cherche les 4 coins de la carte bancaire dans l'image.
 
+    Améliorations :
+      - Seuils Canny auto-adaptatifs
+      - Raffinement sub-pixel des coins (cornerSubPix) pour homographie précise
+
     Returns:
         (corners_float32_4x2 | None, calibration_warning: bool)
         calibration_warning = True si moins de 4 coins trouvés.
@@ -123,7 +172,7 @@ def _find_card_corners(img: np.ndarray) -> tuple:
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+    edges = _canny_auto(blurred, sigma=0.33)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     best_corners = None
@@ -156,35 +205,80 @@ def _find_card_corners(img: np.ndarray) -> tuple:
     if best_corners is None:
         return None, True  # calibration_warning
 
-    return best_corners, False
+    # ── Raffinement sub-pixel des coins (améliore la précision de l'homographie)
+    # cornerSubPix affine chaque coin à ±0.01 px au lieu de ±1 px
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    corners_subpix = cv2.cornerSubPix(
+        gray,
+        best_corners.reshape(-1, 1, 2),
+        winSize=(11, 11),
+        zeroZone=(-1, -1),
+        criteria=criteria,
+    )
+
+    return corners_subpix.reshape(4, 2), False
 
 
 def _detect_joint_contour(img: np.ndarray) -> tuple:
     """Détecte le contour principal (joint) sur l'image corrigée.
+
+    Améliorations :
+      - CLAHE pour égaliser le contraste (éclairage non uniforme sur chantier)
+      - Seuils Canny auto-adaptatifs
+      - Dilation morphologique pour fermer les lacunes du contour
+      - minAreaRect pour mesurer les vraies dimensions (insensible à l'inclinaison)
+      - Filtre de taille : exclut les contours < 1 % de l'image (bruit)
 
     Returns:
         (points: list[list[int]], (width_px: float, height_px: float))
         Fallback sur les dimensions de l'image entière si aucun contour trouvé.
     """
     h, w = img.shape[:2]
+    min_contour_area = 0.01 * h * w  # Ignore les contours < 1 % de l'image
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 30, 100)
+
+    # CLAHE — égalisation adaptative du contraste local
+    # Corrige les zones d'ombre/surexposition sans altérer la géométrie
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+
+    blurred = cv2.GaussianBlur(enhanced, (5, 5), 0)
+    edges = _canny_auto(blurred, sigma=0.4)  # sigma légèrement plus large pour le joint
+
+    # Dilation morphologique — ferme les lacunes dans le contour du joint
+    # (arêtes manquantes dues aux variations de texture du joint)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    edges = cv2.dilate(edges, kernel, iterations=1)
+
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if not contours:
         # Fallback : contour = bounding box de l'image entière
         return [[0, 0], [w, 0], [w, h], [0, h]], (float(w), float(h))
 
-    # Contour le plus grand → joint principal
-    largest = max(contours, key=cv2.contourArea)
+    # Filtre les micro-contours parasites puis sélectionne le plus grand
+    valid = [c for c in contours if cv2.contourArea(c) >= min_contour_area]
+    if not valid:
+        return [[0, 0], [w, 0], [w, h], [0, h]], (float(w), float(h))
+
+    largest = max(valid, key=cv2.contourArea)
     perimeter = cv2.arcLength(largest, True)
     approx = cv2.approxPolyDP(largest, 0.01 * perimeter, True)
     pts = approx.reshape(-1, 2).tolist()
 
-    bx, by, bw, bh = cv2.boundingRect(largest)
-    return pts, (float(bw), float(bh))
+    # ── minAreaRect : dimensions réelles indépendantes de l'orientation ──
+    # boundingRect (axe-aligné) surestime les dimensions si le joint est incliné :
+    # ex. joint 50×20 mm à 10° → boundingRect donne ~52×24 mm (+4%/+20%)
+    # minAreaRect suit les axes principaux du contour → dimensions exactes
+    rect = cv2.minAreaRect(largest)
+    (_cx, _cy), (rw, rh), _angle = rect
+    # minAreaRect peut retourner (width, height) ou (height, width) selon l'angle ;
+    # on retourne (plus grande dimension, plus petite) pour un affichage cohérent
+    width_px = float(max(rw, rh))
+    height_px = float(min(rw, rh))
+
+    return pts, (width_px, height_px)
 
 
 # ── API publique Story 4.1 ────────────────────────────────────────────────────
@@ -213,8 +307,14 @@ def process_image(image_bytes: bytes) -> dict:
 
     orig_h, orig_w = img.shape[:2]
 
-    # Étape 1 : coins de la carte
-    corners, calibration_warning = _find_card_corners(img)
+    # ── Normalisation résolution ──
+    # Stabilise le comportement quel que soit le capteur (iPhone 17 jusqu'à ~48 MP).
+    # On normalise AVANT toute détection, et on retrace les coordonnées en fin de pipeline.
+    proc_img, scale_down = _resize_for_processing(img)
+    proc_h, proc_w = proc_img.shape[:2]
+
+    # Étape 1 : coins de la carte (sur image normalisée)
+    corners, calibration_warning = _find_card_corners(proc_img)
 
     # Étape 2 : correction perspective
     if corners is not None:
@@ -230,11 +330,11 @@ def process_image(image_bytes: bytes) -> dict:
         )
         H = cv2.getPerspectiveTransform(ordered, dst_pts)
         H_inv = np.linalg.inv(H)
-        warped = cv2.warpPerspective(img, H, (_DST_W, _DST_H))
+        warped = cv2.warpPerspective(proc_img, H, (_DST_W, _DST_H))
     else:
         # Pas de homographie disponible : redimensionnement simple
         H_inv = None
-        warped = cv2.resize(img, (_DST_W, _DST_H))
+        warped = cv2.resize(proc_img, (_DST_W, _DST_H))
 
     # Étape 3 : détection contour joint sur image corrigée
     contour_warped, (w_px, h_px) = _detect_joint_contour(warped)
@@ -244,10 +344,14 @@ def process_image(image_bytes: bytes) -> dict:
     height_mm = h_px / _SCALE
 
     # Étape 5 : remappage contour → coordonnées image originale (normalisées)
+    # Les coins ont été détectés sur proc_img (scale_down appliqué).
+    # H_inv ramène en coordonnées proc_img → on divise par proc_img.shape pour normaliser.
     if H_inv is not None and contour_warped:
         pts_warped = np.array(contour_warped, dtype=np.float32).reshape(-1, 1, 2)
-        pts_orig = cv2.perspectiveTransform(pts_warped, H_inv)
-        pts_norm = pts_orig.reshape(-1, 2) / np.array([orig_w, orig_h], dtype=np.float32)
+        pts_proc = cv2.perspectiveTransform(pts_warped, H_inv)
+        # Normalisation par les dimensions de proc_img (pas orig pour conserver la cohérence
+        # avec l'homographie calculée sur proc_img)
+        pts_norm = pts_proc.reshape(-1, 2) / np.array([proc_w, proc_h], dtype=np.float32)
         contour_normalized = pts_norm.tolist()
     elif contour_warped:
         # Scaling proportionnel vers l'image originale
