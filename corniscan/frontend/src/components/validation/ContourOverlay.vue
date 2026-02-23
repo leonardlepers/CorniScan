@@ -42,14 +42,18 @@ const svgPoints = computed(() =>
   position: relative;
   display: inline-block;
   max-width: 100%;
-  line-height: 0; /* évite l'espace sous l'img */
+  line-height: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
 }
 
 .photo-img {
   display: block;
   max-width: 100%;
-  max-height: 60dvh;
+  max-height: 56dvh;
   object-fit: contain;
+  background: var(--color-surface-strong);
 }
 
 .contour-svg {
@@ -61,8 +65,8 @@ const svgPoints = computed(() =>
 }
 
 .contour-polygon {
-  fill: rgba(34, 197, 94, 0.15);
-  stroke: #22c55e;
+  fill: rgba(31, 138, 106, 0.18);
+  stroke: var(--color-success);
   stroke-width: 0.005;
 }
 </style>

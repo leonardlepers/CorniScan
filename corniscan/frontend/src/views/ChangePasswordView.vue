@@ -48,7 +48,10 @@ async function handleSubmit() {
 <template>
   <main class="change-password-page">
     <div class="change-password-card">
-      <h1>CorniScan</h1>
+      <div class="brand-block">
+        <p class="brand-kicker">Sécurisation du compte</p>
+        <h1>CorniScan</h1>
+      </div>
       <p class="subtitle">Veuillez choisir un nouveau mot de passe pour sécuriser votre compte.</p>
 
       <form class="change-password-form" @submit.prevent="handleSubmit">
@@ -100,74 +103,88 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  background: #f5f5f5;
-  font-family: sans-serif;
+  min-height: 100dvh;
+  padding: calc(var(--safe-top) + var(--screen-pad)) var(--screen-pad)
+    calc(var(--safe-bottom) + var(--screen-pad));
 }
 
 .change-password-card {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
-  padding: 2rem;
-  width: 100%;
-  max-width: 400px;
+  width: min(100%, 460px);
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: clamp(24px, 6vw, 36px);
+  border: 1px solid var(--color-border);
+}
+
+.brand-block {
+  margin-bottom: 0.8rem;
+}
+
+.brand-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-soft);
+  margin-bottom: 0.35rem;
 }
 
 h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.5rem;
-  text-align: center;
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
 }
 
 .subtitle {
-  font-size: 0.875rem;
-  color: #555;
-  text-align: center;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
   margin: 0 0 1.5rem;
 }
 
 .change-password-form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 label {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 input {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
   font-size: 1rem;
-  margin-bottom: 0.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input:focus {
   outline: none;
-  border-color: #4a6cf7;
-  box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.2);
+  border-color: rgba(201, 123, 99, 0.6);
+  box-shadow: 0 0 0 3px rgba(201, 123, 99, 0.2);
 }
 
 .error-msg {
-  color: #d32f2f;
-  font-size: 0.875rem;
-  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  margin: 0.2rem 0 0;
 }
 
 button {
-  padding: 0.7rem;
-  background: #4a6cf7;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--color-accent);
   color: #fff;
-  border: none;
-  border-radius: 4px;
+  border-radius: 999px;
   font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
-  margin-top: 0.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 button:disabled {

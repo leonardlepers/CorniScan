@@ -8,7 +8,7 @@
  */
 import { ref } from 'vue'
 
-const props = defineProps<{
+defineProps<{
   calibrationWarning: boolean
 }>()
 
@@ -31,29 +31,41 @@ function onInput() {
     <!-- Champ épaisseur (FR21) -->
     <div class="thickness-field">
       <label for="thickness-input" class="thickness-label">Épaisseur du joint (mm)</label>
-      <input
-        id="thickness-input"
-        v-model="rawValue"
-        type="number"
-        min="0"
-        step="0.1"
-        class="thickness-input"
-        placeholder="0.0"
-        @input="onInput"
-      />
+      <div class="thickness-input-wrapper">
+        <input
+          id="thickness-input"
+          v-model="rawValue"
+          type="number"
+          min="0"
+          step="0.1"
+          class="thickness-input"
+          placeholder="0.0"
+          inputmode="decimal"
+          @input="onInput"
+        />
+        <span class="thickness-unit" aria-hidden="true">mm</span>
+      </div>
     </div>
 
     <!-- Avertissement calibration insuffisante (FR22) -->
-    <div v-if="calibrationWarning" class="calibration-warning">
+    <div v-if="calibrationWarning" class="calibration-warning" role="alert">
+      <div class="warning-header">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M9 2L16.5 15H1.5L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M9 7v4M9 13h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <p class="warning-title">Calibration insuffisante</p>
+      </div>
       <p class="warning-text">
-        Calibration insuffisante — moins de 4 coins de la carte détectés.
-        Recommencez avec la carte entièrement visible.
+        Moins de 4 coins de la carte détectés. Recommencez avec la carte entièrement visible.
       </p>
       <!-- Deux actions (FR23) -->
       <div class="warning-actions">
-        <button class="retake-btn" @click="emit('retake')">Recommencer la photo</button>
-        <button class="force-send-btn" @click="emit('force-send')">
-          Forcer l'envoi malgré l'avertissement
+        <button class="warn-btn warn-btn--secondary" @click="emit('retake')">
+          Recommencer la photo
+        </button>
+        <button class="warn-btn warn-btn--primary" @click="emit('force-send')">
+          Envoyer quand même
         </button>
       </div>
     </div>
@@ -66,52 +78,103 @@ function onInput() {
   flex-direction: column;
   gap: 1rem;
   width: 100%;
-  max-width: 360px;
 }
 
+/* ── Champ épaisseur ────────────────────────────── */
 .thickness-field {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .thickness-label {
-  font-size: 0.875rem;
-  opacity: 0.8;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: var(--color-text-soft);
+}
+
+.thickness-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .thickness-input {
-  padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 1.125rem;
+  height: var(--input-height);
+  padding: 0 3.5rem 0 1rem;
+  background: var(--color-surface-muted);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 1.2rem;
+  font-weight: 600;
   text-align: center;
   width: 100%;
-  box-sizing: border-box;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .thickness-input:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.6);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px rgba(201, 123, 99, 0.15);
+  background: var(--color-surface);
 }
 
+/* Supprime les flèches natives du input number sur iOS/Chrome */
+.thickness-input::-webkit-inner-spin-button,
+.thickness-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.thickness-unit {
+  position: absolute;
+  right: 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-soft);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Avertissement calibration ──────────────────── */
 .calibration-warning {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1rem;
-  background: rgba(234, 179, 8, 0.15);
-  border: 1px solid rgba(234, 179, 8, 0.5);
-  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  background: rgba(194, 123, 58, 0.08);
+  border: 1.5px solid rgba(194, 123, 58, 0.3);
+  border-radius: var(--radius-md);
+  animation: slideIn 0.25s var(--ease-out) both;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.warning-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9a5c15;
+}
+
+.warning-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #9a5c15;
+  margin: 0;
 }
 
 .warning-text {
-  color: #fde047;
-  font-size: 0.9rem;
+  color: #7a4a10;
+  font-size: 0.875rem;
   line-height: 1.5;
   margin: 0;
 }
@@ -122,23 +185,28 @@ function onInput() {
   gap: 0.5rem;
 }
 
-.retake-btn,
-.force-send-btn {
-  padding: 0.6rem 1rem;
+.warn-btn {
+  height: var(--btn-height-sm);
+  padding: 0 1rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.warn-btn:active {
+  transform: scale(0.96);
+}
+
+.warn-btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1.5px solid var(--color-border-strong);
+}
+
+.warn-btn--primary {
+  background: var(--color-warning);
+  color: #fff;
   border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.retake-btn {
-  background: #fff;
-  color: #111;
-}
-
-.force-send-btn {
-  background: rgba(234, 179, 8, 0.3);
-  color: #fde047;
-  border: 1px solid rgba(234, 179, 8, 0.5);
 }
 </style>

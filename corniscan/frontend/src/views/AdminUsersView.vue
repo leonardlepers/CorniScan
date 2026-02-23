@@ -112,100 +112,108 @@ onMounted(loadUsers)
   <div class="admin-users-page">
     <AppHeader />
     <main class="admin-users-content">
-    <div class="admin-users-card">
-      <h1>Gestion des comptes</h1>
-
-      <!-- Formulaire de création -->
-      <section class="create-section">
-        <h2>Créer un compte opérateur</h2>
-        <form class="create-form" @submit.prevent="handleCreate">
-          <div class="field-group">
-            <label for="new-username">Nom d'utilisateur</label>
-            <input
-              id="new-username"
-              v-model="newUsername"
-              type="text"
-              autocomplete="off"
-              :disabled="isCreating"
-              placeholder="Nom d'utilisateur"
-            />
-            <p v-if="formErrors.username" class="field-error">{{ formErrors.username }}</p>
+      <div class="admin-users-card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Gestion des comptes</h1>
           </div>
+          <div class="header-chip">Accès réservé</div>
+        </div>
 
-          <div class="field-group">
-            <label for="new-password">Mot de passe provisoire</label>
-            <input
-              id="new-password"
-              v-model="newPassword"
-              type="password"
-              autocomplete="new-password"
-              :disabled="isCreating"
-              placeholder="Mot de passe provisoire"
-            />
-            <p v-if="formErrors.password" class="field-error">{{ formErrors.password }}</p>
+        <!-- Formulaire de création -->
+        <section class="create-section">
+          <h2>Créer un compte opérateur</h2>
+          <form class="create-form" @submit.prevent="handleCreate">
+            <div class="field-group">
+              <label for="new-username">Nom d'utilisateur</label>
+              <input
+                id="new-username"
+                v-model="newUsername"
+                type="text"
+                autocomplete="off"
+                :disabled="isCreating"
+                placeholder="Nom d'utilisateur"
+              />
+              <p v-if="formErrors.username" class="field-error">{{ formErrors.username }}</p>
+            </div>
+
+            <div class="field-group">
+              <label for="new-password">Mot de passe provisoire</label>
+              <input
+                id="new-password"
+                v-model="newPassword"
+                type="password"
+                autocomplete="new-password"
+                :disabled="isCreating"
+                placeholder="Mot de passe provisoire"
+              />
+              <p v-if="formErrors.password" class="field-error">{{ formErrors.password }}</p>
+            </div>
+
+            <p v-if="createError" class="error-msg" role="alert">{{ createError }}</p>
+            <p v-if="createSuccess" class="success-msg" role="status">{{ createSuccess }}</p>
+
+            <button type="submit" :disabled="isCreating">
+              {{ isCreating ? 'Création…' : 'Créer le compte' }}
+            </button>
+          </form>
+        </section>
+
+        <hr class="divider" />
+
+        <!-- Liste des comptes -->
+        <section>
+          <h2>Comptes existants</h2>
+          <p v-if="isLoading" class="loading-msg">Chargement…</p>
+          <p v-else-if="error" class="error-msg" role="alert">{{ error }}</p>
+
+          <p v-if="deactivateError" class="error-msg" role="alert">{{ deactivateError }}</p>
+
+          <div class="table-wrapper" v-if="!isLoading && !error">
+            <table class="users-table" aria-label="Liste des comptes utilisateurs">
+              <thead>
+                <tr>
+                  <th>Nom d'utilisateur</th>
+                  <th>Rôle</th>
+                  <th>Statut</th>
+                  <th>Créé le</th>
+                  <th>MDP à changer</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="user in users" :key="user.username">
+                  <td>{{ user.username }}</td>
+                  <td>
+                    <span :class="['role-badge', user.role]">{{ user.role }}</span>
+                  </td>
+                  <td>
+                    <span :class="['status-badge', user.is_active ? 'active' : 'inactive']">
+                      {{ user.is_active ? 'Actif' : 'Inactif' }}
+                    </span>
+                  </td>
+                  <td>{{ formatDate(user.created_at) }}</td>
+                  <td>{{ user.force_password_change ? 'Oui' : 'Non' }}</td>
+                  <td>
+                    <button
+                      v-if="user.is_active && user.username !== authStore.user?.username"
+                      class="btn-deactivate"
+                      :disabled="deactivating === user.username"
+                      @click="handleDeactivate(user.username)"
+                    >
+                      {{ deactivating === user.username ? '…' : 'Désactiver' }}
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="users.length === 0">
+                  <td colspan="6" class="empty-msg">Aucun compte trouvé.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-
-          <p v-if="createError" class="error-msg" role="alert">{{ createError }}</p>
-          <p v-if="createSuccess" class="success-msg" role="status">{{ createSuccess }}</p>
-
-          <button type="submit" :disabled="isCreating">
-            {{ isCreating ? 'Création…' : 'Créer le compte' }}
-          </button>
-        </form>
-      </section>
-
-      <hr class="divider" />
-
-      <!-- Liste des comptes -->
-      <section>
-        <h2>Comptes existants</h2>
-        <p v-if="isLoading" class="loading-msg">Chargement…</p>
-        <p v-else-if="error" class="error-msg" role="alert">{{ error }}</p>
-
-        <p v-if="deactivateError" class="error-msg" role="alert">{{ deactivateError }}</p>
-
-        <table v-if="!isLoading && !error" class="users-table" aria-label="Liste des comptes utilisateurs">
-          <thead>
-            <tr>
-              <th>Nom d'utilisateur</th>
-              <th>Rôle</th>
-              <th>Statut</th>
-              <th>Créé le</th>
-              <th>MDP à changer</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="user in users" :key="user.username">
-              <td>{{ user.username }}</td>
-              <td>
-                <span :class="['role-badge', user.role]">{{ user.role }}</span>
-              </td>
-              <td>
-                <span :class="['status-badge', user.is_active ? 'active' : 'inactive']">
-                  {{ user.is_active ? 'Actif' : 'Inactif' }}
-                </span>
-              </td>
-              <td>{{ formatDate(user.created_at) }}</td>
-              <td>{{ user.force_password_change ? 'Oui' : 'Non' }}</td>
-              <td>
-                <button
-                  v-if="user.is_active && user.username !== authStore.user?.username"
-                  class="btn-deactivate"
-                  :disabled="deactivating === user.username"
-                  @click="handleDeactivate(user.username)"
-                >
-                  {{ deactivating === user.username ? '…' : 'Désactiver' }}
-                </button>
-              </td>
-            </tr>
-            <tr v-if="users.length === 0">
-              <td colspan="6" class="empty-msg">Aucun compte trouvé.</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-    </div>
+        </section>
+      </div>
     </main>
   </div>
 </template>
@@ -214,9 +222,7 @@ onMounted(loadUsers)
 .admin-users-page {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  background: #f5f5f5;
-  font-family: sans-serif;
+  min-height: 100dvh;
 }
 
 .admin-users-content {
@@ -224,42 +230,69 @@ onMounted(loadUsers)
   align-items: flex-start;
   justify-content: center;
   flex: 1;
-  padding: 2rem 1rem;
+  padding: var(--screen-pad);
 }
 
 .admin-users-card {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
-  padding: 2rem;
-  width: 100%;
-  max-width: 800px;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: clamp(24px, 4vw, 36px);
+  width: min(100%, 980px);
+  border: 1px solid var(--color-border);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-soft);
+  margin-bottom: 0.35rem;
+}
+
+.header-chip {
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 h1 {
-  font-size: 1.25rem;
-  margin: 0 0 1.5rem;
+  font-size: 1.35rem;
+  margin: 0;
 }
 
 h2 {
   font-size: 1rem;
   font-weight: 600;
   margin: 0 0 1rem;
-  color: #333;
+  color: var(--color-text);
 }
 
 .divider {
   border: none;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--color-border);
   margin: 1.5rem 0;
 }
 
-/* Formulaire de création */
 .create-form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-width: 400px;
+  gap: 0.6rem;
+  max-width: 420px;
 }
 
 .field-group {
@@ -269,39 +302,40 @@ h2 {
 }
 
 label {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 input {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 1rem;
+  background: var(--color-surface-muted);
 }
 
 input:focus {
   outline: none;
-  border-color: #4a6cf7;
-  box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.2);
+  border-color: rgba(201, 123, 99, 0.6);
+  box-shadow: 0 0 0 3px rgba(201, 123, 99, 0.2);
 }
 
 .field-error {
-  color: #d32f2f;
+  color: var(--color-danger);
   font-size: 0.8rem;
   margin: 0;
 }
 
 button {
-  padding: 0.7rem;
-  background: #4a6cf7;
+  padding: 0.65rem 1.2rem;
+  background: var(--color-accent);
   color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 1rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
-  margin-top: 0.5rem;
+  margin-top: 0.3rem;
   align-self: flex-start;
 }
 
@@ -310,87 +344,89 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Messages */
 .loading-msg,
 .empty-msg {
   font-size: 0.9rem;
-  color: #555;
+  color: var(--color-text-muted);
 }
 
 .error-msg {
-  color: #d32f2f;
+  color: var(--color-danger);
   font-size: 0.875rem;
   margin: 0;
 }
 
 .success-msg {
-  color: #2e7d32;
+  color: var(--color-success);
   font-size: 0.875rem;
   margin: 0;
 }
 
-/* Tableau */
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
 .users-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  min-width: 640px;
+  background: var(--color-surface);
 }
 
 .users-table th,
 .users-table td {
   text-align: left;
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .users-table th {
   font-weight: 600;
-  color: #333;
-  background: #f9f9f9;
+  color: var(--color-text);
+  background: var(--color-surface-strong);
 }
 
-.role-badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
+.role-badge,
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .role-badge.admin {
-  background: #e3eafd;
-  color: #1a3cc8;
+  background: rgba(31, 138, 106, 0.12);
+  color: var(--color-success);
 }
 
 .role-badge.operator {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
 }
 
 .status-badge.active {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: rgba(31, 138, 106, 0.12);
+  color: var(--color-success);
 }
 
 .status-badge.inactive {
-  background: #fbe9e7;
-  color: #bf360c;
+  background: rgba(209, 73, 91, 0.12);
+  color: var(--color-danger);
 }
 
 .btn-deactivate {
-  padding: 0.25rem 0.6rem;
-  background: #fbe9e7;
-  color: #bf360c;
-  border: 1px solid #ef9a9a;
-  border-radius: 4px;
+  padding: 0.35rem 0.75rem;
+  background: rgba(209, 73, 91, 0.12);
+  color: var(--color-danger);
+  border: 1px solid rgba(209, 73, 91, 0.35);
+  border-radius: 999px;
   font-size: 0.8rem;
   cursor: pointer;
   margin-top: 0;
