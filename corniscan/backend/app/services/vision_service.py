@@ -252,7 +252,8 @@ def _detect_joint_contour(img: np.ndarray) -> tuple:
       - Filtre de taille : exclut les contours < 1 % de l'image (bruit)
 
     Returns:
-        (points: list[list[int]], (width_px: float, height_px: float))
+        (points: list[list[int]], (width_px: float, height_px: float), holes_raw: list[tuple])
+        holes_raw = liste de (pts, width_px, height_px) par trou interne détecté.
         Fallback sur les dimensions de l'image entière si aucun contour trouvé.
     """
     h, w = img.shape[:2]
@@ -273,34 +274,48 @@ def _detect_joint_contour(img: np.ndarray) -> tuple:
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     edges = cv2.dilate(edges, kernel, iterations=1)
 
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(edges, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
-    if not contours:
-        # Fallback : contour = bounding box de l'image entière
-        return [[0, 0], [w, 0], [w, h], [0, h]], (float(w), float(h))
+    if not contours or hierarchy is None:
+        return [[0, 0], [w, 0], [w, h], [0, h]], (float(w), float(h)), []
 
-    # Filtre les micro-contours parasites puis sélectionne le plus grand
-    valid = [c for c in contours if cv2.contourArea(c) >= min_contour_area]
-    if not valid:
-        return [[0, 0], [w, 0], [w, h], [0, h]], (float(w), float(h))
+    hier = hierarchy[0]  # (N, 4): [next, prev, first_child, parent]
 
-    largest = max(valid, key=cv2.contourArea)
+    # Contours externes (parent == -1) dépassant le seuil de taille
+    outer_valid = [
+        i for i, c in enumerate(contours)
+        if hier[i][3] == -1 and cv2.contourArea(c) >= min_contour_area
+    ]
+    if not outer_valid:
+        return [[0, 0], [w, 0], [w, h], [0, h]], (float(w), float(h)), []
+
+    largest_idx = max(outer_valid, key=lambda i: cv2.contourArea(contours[i]))
+    largest = contours[largest_idx]
     perimeter = cv2.arcLength(largest, True)
     approx = cv2.approxPolyDP(largest, 0.01 * perimeter, True)
     pts = approx.reshape(-1, 2).tolist()
 
     # ── minAreaRect : dimensions réelles indépendantes de l'orientation ──
-    # boundingRect (axe-aligné) surestime les dimensions si le joint est incliné :
-    # ex. joint 50×20 mm à 10° → boundingRect donne ~52×24 mm (+4%/+20%)
-    # minAreaRect suit les axes principaux du contour → dimensions exactes
     rect = cv2.minAreaRect(largest)
     (_cx, _cy), (rw, rh), _angle = rect
-    # minAreaRect peut retourner (width, height) ou (height, width) selon l'angle ;
-    # on retourne (plus grande dimension, plus petite) pour un affichage cohérent
     width_px = float(max(rw, rh))
     height_px = float(min(rw, rh))
 
-    return pts, (width_px, height_px)
+    # ── Trous internes : enfants directs du contour principal ──
+    min_hole_area = 0.001 * h * w
+    holes_raw: list[tuple] = []
+    for i, cnt in enumerate(contours):
+        if hier[i][3] != largest_idx:
+            continue
+        if cv2.contourArea(cnt) < min_hole_area:
+            continue
+        h_perim = cv2.arcLength(cnt, True)
+        h_approx = cv2.approxPolyDP(cnt, 0.01 * h_perim, True)
+        h_pts = h_approx.reshape(-1, 2).tolist()
+        (_, _), (h_rw, h_rh), _ = cv2.minAreaRect(cnt)
+        holes_raw.append((h_pts, float(max(h_rw, h_rh)), float(min(h_rw, h_rh))))
+
+    return pts, (width_px, height_px), holes_raw
 
 
 # ── API publique Story 4.1 ────────────────────────────────────────────────────
@@ -359,7 +374,7 @@ def process_image(image_bytes: bytes) -> dict:
         warped = cv2.resize(proc_img, (_DST_W, _DST_H))
 
     # Étape 3 : détection contour joint sur image corrigée
-    contour_warped, (w_px, h_px) = _detect_joint_contour(warped)
+    contour_warped, (w_px, h_px), holes_raw = _detect_joint_contour(warped)
 
     # Étape 4 : dimensions en mm
     width_mm = w_px / _SCALE
@@ -384,6 +399,26 @@ def process_image(image_bytes: bytes) -> dict:
     else:
         contour_normalized = []
 
+    # Étape 6 : normalisation des trous internes (même transform que le contour principal)
+    holes_normalized = []
+    for h_pts, h_w_px, h_h_px in holes_raw:
+        if H_inv is not None and h_pts:
+            pts_w = np.array(h_pts, dtype=np.float32).reshape(-1, 1, 2)
+            pts_p = cv2.perspectiveTransform(pts_w, H_inv)
+            h_norm = (pts_p.reshape(-1, 2) / np.array([proc_w, proc_h], dtype=np.float32)).tolist()
+        elif h_pts:
+            pts_arr = np.array(h_pts, dtype=np.float32)
+            pts_arr[:, 0] /= _DST_W
+            pts_arr[:, 1] /= _DST_H
+            h_norm = pts_arr.tolist()
+        else:
+            continue
+        holes_normalized.append({
+            "contour_points": h_norm,
+            "width_mm": round(h_w_px / _SCALE, 1),
+            "height_mm": round(h_h_px / _SCALE, 1),
+        })
+
     return {
         "contour_points": contour_normalized,
         "dimensions": {
@@ -391,6 +426,7 @@ def process_image(image_bytes: bytes) -> dict:
             "height_mm": round(height_mm, 1),
         },
         "calibration_warning": calibration_warning,
+        "holes": holes_normalized,
     }
 
 

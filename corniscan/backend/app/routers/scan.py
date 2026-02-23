@@ -103,6 +103,7 @@ def submit_scan_endpoint(
     height_mm: float = Form(...),
     thickness: float | None = Form(None),
     calibration_warning: bool = Form(False),
+    hole_contours: str = Form("[]"),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Pipeline complet de livraison : DXF R2018 + PNG contour + email Resend (Stories 4.5, 5.1, 5.2 — FR24–27).
@@ -131,9 +132,14 @@ def submit_scan_endpoint(
             detail="contour_points invalide.",
         ) from exc
 
+    try:
+        holes_list: list[dict] = json.loads(hole_contours)
+    except (json.JSONDecodeError, ValueError):
+        holes_list = []
+
     # Story 5.1 — génération DXF R2018
     try:
-        dxf_bytes = generate_dxf(points, width_mm, height_mm)
+        dxf_bytes = generate_dxf(points, width_mm, height_mm, holes=holes_list or None)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

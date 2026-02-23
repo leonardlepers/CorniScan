@@ -17,10 +17,17 @@ export interface ScanDimensions {
   height_mm: number
 }
 
+export interface HoleDimensions {
+  contour_points: number[][]
+  width_mm: number
+  height_mm: number
+}
+
 export interface ProcessResult {
   contour_points: number[][]
   dimensions: ScanDimensions
   calibration_warning: boolean
+  holes: HoleDimensions[]
 }
 
 export const useScanStore = defineStore('scan', () => {
@@ -34,6 +41,9 @@ export const useScanStore = defineStore('scan', () => {
 
   // Story 4.3: épaisseur du joint saisie manuellement par l'opérateur (mm)
   const thickness = ref<number | null>(null)
+
+  // Trous internes détectés
+  const holes = ref<HoleDimensions[]>([])
 
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -53,6 +63,7 @@ export const useScanStore = defineStore('scan', () => {
     contour.value = result.contour_points
     dimensions.value = result.dimensions
     calibrationWarning.value = result.calibration_warning
+    holes.value = result.holes ?? []
   }
 
   function setThickness(value: number | null): void {
@@ -64,6 +75,7 @@ export const useScanStore = defineStore('scan', () => {
     dimensions.value = null
     calibrationWarning.value = false
     thickness.value = null
+    holes.value = []
   }
 
   return {
@@ -77,6 +89,7 @@ export const useScanStore = defineStore('scan', () => {
     dimensions,
     calibrationWarning,
     thickness,
+    holes,
     setResult,
     setThickness,
     clearResult,

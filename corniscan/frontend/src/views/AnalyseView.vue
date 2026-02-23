@@ -90,6 +90,7 @@ async function handleSubmit(): Promise<void> {
     formData.append('thickness', String(scanStore.thickness))
   }
   formData.append('calibration_warning', String(scanStore.calibrationWarning))
+  formData.append('hole_contours', JSON.stringify(scanStore.holes))
 
   try {
     await apiCall('/api/v1/scan/submit', { method: 'POST', body: formData })
@@ -164,6 +165,29 @@ async function handleSubmit(): Promise<void> {
               <span class="dim-chip-axis">H</span>
               <span class="dim-chip-value">{{ scanStore.dimensions.height_mm.toFixed(1) }}</span>
               <span class="dim-chip-unit">mm</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trous internes -->
+        <div v-if="scanStore.holes.length > 0" class="holes-display">
+          <p class="dimensions-label">Trous internes ({{ scanStore.holes.length }})</p>
+          <div class="holes-list">
+            <div v-for="(hole, i) in scanStore.holes" :key="i" class="hole-row">
+              <span class="hole-index">#{{ i + 1 }}</span>
+              <div class="dimensions-values">
+                <div class="dim-chip dim-chip--sm">
+                  <span class="dim-chip-axis">L</span>
+                  <span class="dim-chip-value">{{ hole.width_mm.toFixed(1) }}</span>
+                  <span class="dim-chip-unit">mm</span>
+                </div>
+                <span class="dim-separator" aria-hidden="true">×</span>
+                <div class="dim-chip dim-chip--sm">
+                  <span class="dim-chip-axis">H</span>
+                  <span class="dim-chip-value">{{ hole.height_mm.toFixed(1) }}</span>
+                  <span class="dim-chip-unit">mm</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -341,6 +365,36 @@ async function handleSubmit(): Promise<void> {
   font-size: 1.2rem;
   font-weight: 300;
   color: var(--color-text-soft);
+}
+
+/* ── Trous internes ──────────────────────────────── */
+.holes-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.holes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hole-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hole-index {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-soft);
+  min-width: 1.8rem;
+}
+
+.dim-chip--sm .dim-chip-value {
+  font-size: 1.1rem;
 }
 
 /* ── Bannière erreur envoi ───────────────────────── */

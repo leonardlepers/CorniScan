@@ -18,6 +18,7 @@ def generate_dxf(
     contour_points: list[list[float]],
     width_mm: float,
     height_mm: float,
+    holes: list[dict] | None = None,
 ) -> bytes:
     """Génère un fichier DXF R2018 avec le contour du joint (Story 5.1 — FR25).
 
@@ -62,6 +63,19 @@ def generate_dxf(
     msp = doc.modelspace()
     polyline = msp.add_lwpolyline(pts_mm)
     polyline.closed = True
+
+    # Trous internes — même transform coordonnées que le contour principal
+    if holes:
+        for hole in holes:
+            h_pts = np.array(hole.get("contour_points", []), dtype=float)
+            if len(h_pts) < 3:
+                continue
+            hole_mm = [
+                ((pt[0] - x_min) / x_range * width_mm, (pt[1] - y_min) / y_range * height_mm)
+                for pt in h_pts
+            ]
+            h_poly = msp.add_lwpolyline(hole_mm)
+            h_poly.closed = True
 
     # Validation avant export (NFR-I2)
     if not polyline.is_closed:
