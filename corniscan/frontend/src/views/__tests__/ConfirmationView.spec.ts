@@ -30,6 +30,7 @@ function withDimensions(store: ReturnType<typeof useScanStore>) {
     contour_points: [[0, 0], [1, 0], [1, 1], [0, 1]],
     dimensions: { width_mm: 30.5, height_mm: 20.0 },
     calibration_warning: false,
+    holes: [],
   })
 }
 

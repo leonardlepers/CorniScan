@@ -67,6 +67,7 @@ describe('scanStore — résultat analyse (Story 4.1)', () => {
     ],
     dimensions: { width_mm: 85.6, height_mm: 53.98 },
     calibration_warning: false,
+    holes: [],
   }
 
   it('initialise avec contour vide, dimensions null, calibrationWarning false', () => {
