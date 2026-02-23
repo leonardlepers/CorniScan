@@ -12,11 +12,20 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.services.dxf_service import generate_dxf
 from app.services.email_service import send_scan_email
-from app.services.vision_service import detect_card, generate_contour_png, process_image
+from app.services.vision_service import detect_card, generate_contour_png, pdf_to_image_bytes, process_image
 
 router = APIRouter(prefix="/api/v1/scan", tags=["scan"])
 
-_MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 Mo
+_MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20 Mo (PDF inclus)
+
+
+def _normalise_to_image_bytes(file: UploadFile, raw: bytes) -> bytes:
+    """Convertit en JPEG si le fichier est un PDF, sinon renvoie raw tel quel."""
+    ct = (file.content_type or "").lower()
+    fn = (file.filename or "").lower()
+    if "pdf" in ct or fn.endswith(".pdf"):
+        return pdf_to_image_bytes(raw)
+    return raw
 
 
 @router.post("/detect-card")
@@ -70,8 +79,10 @@ def process_image_endpoint(
     if len(image_bytes) > _MAX_IMAGE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Image trop volumineuse (max 10 Mo).",
+            detail="Fichier trop volumineux (max 20 Mo).",
         )
+
+    image_bytes = _normalise_to_image_bytes(file, image_bytes)
 
     try:
         result = process_image(image_bytes)
@@ -107,8 +118,10 @@ def submit_scan_endpoint(
     if len(image_bytes) > _MAX_IMAGE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Image trop volumineuse (max 10 Mo).",
+            detail="Fichier trop volumineux (max 20 Mo).",
         )
+
+    image_bytes = _normalise_to_image_bytes(file, image_bytes)
 
     try:
         points: list[list[float]] = json.loads(contour_points)

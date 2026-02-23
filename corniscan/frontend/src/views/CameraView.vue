@@ -50,6 +50,16 @@ function onChecklistUpdate(value: boolean) {
   allChecked.value = value
 }
 
+// Import fichier (image ou PDF) — alternative à la caméra
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function handleFileUpload(event: Event): void {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  scanStore.setPhoto(file)
+  router.push({ name: 'analyse' })
+}
+
 // Story 3.4 — capture photo (AC#1 FR12)
 const capturedImage = ref<string | null>(null)
 let capturedFile: File | null = null
@@ -207,6 +217,18 @@ async function retakePhoto(): Promise<void> {
             <span class="capture-btn-inner"></span>
           </button>
         </div>
+
+        <!-- Import fichier — alternative à la caméra -->
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*,application/pdf"
+          class="file-input-hidden"
+          @change="handleFileUpload"
+        />
+        <button class="import-btn" @click="fileInput?.click()">
+          Importer une image ou un PDF
+        </button>
       </div>
     </div>
   </div>
@@ -495,5 +517,24 @@ async function retakePhoto(): Promise<void> {
   background: var(--color-success);
   color: #fff;
   box-shadow: var(--shadow-success);
+}
+
+/* ── Import fichier ──────────────────────────────── */
+.file-input-hidden {
+  display: none;
+}
+
+.import-btn {
+  color: rgba(247, 241, 234, 0.6);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0.25rem 0;
+  transition: color var(--transition-fast);
+}
+
+.import-btn:active {
+  color: rgba(247, 241, 234, 0.9);
 }
 </style>

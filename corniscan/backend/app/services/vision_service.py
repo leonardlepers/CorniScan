@@ -30,6 +30,7 @@ Améliorations fiabilité :
 
 import numpy as np
 import cv2
+import fitz  # pymupdf
 
 
 # Ratio largeur/hauteur d'une carte bancaire standard (85.6mm / 53.98mm)
@@ -47,6 +48,27 @@ _DST_H = int(_CARD_H_MM * _SCALE)   # 539 px
 # Normalisation résolution — stabilise le comportement quel que soit le capteur
 # (iPhone 15 Pro = 48 MP, iPhone 17 = ~48-200 MP selon modèle)
 _MAX_PROCESSING_WIDTH = 2048
+
+
+def pdf_to_image_bytes(pdf_bytes: bytes) -> bytes:
+    """Convertit la première page d'un PDF en JPEG bytes (150 DPI).
+
+    Args:
+        pdf_bytes: contenu brut du fichier PDF.
+
+    Returns:
+        JPEG bytes de la première page.
+
+    Raises:
+        ValueError: si le PDF ne peut pas être ouvert ou ne contient aucune page.
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if doc.page_count == 0:
+        raise ValueError("Le PDF ne contient aucune page.")
+    page = doc[0]
+    mat = fitz.Matrix(150 / 72, 150 / 72)  # 150 DPI
+    pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
+    return pix.tobytes("jpeg")
 
 
 def _resize_for_processing(img: np.ndarray) -> tuple[np.ndarray, float]:
