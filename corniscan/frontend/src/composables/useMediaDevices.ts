@@ -39,6 +39,7 @@ export function useMediaDevices() {
 
       if (videoRef.value) {
         videoRef.value.srcObject = stream
+        localStorage.setItem('camera_granted', 'true')
       }
 
       // AC#2 — portrait lock (best-effort : ignore si non supporté)

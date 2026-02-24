@@ -38,15 +38,7 @@ const submitError = ref<string | null>(null)
 
 interface SubmitResponse {
   dxf: string
-  image: string
   contour: string
-}
-
-function b64toFile(b64: string, filename: string, mimeType: string): File {
-  const bytes = atob(b64)
-  const arr = new Uint8Array(bytes.length)
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
-  return new File([arr], filename, { type: mimeType })
 }
 
 onMounted(async () => {
@@ -107,34 +99,8 @@ async function handleSubmit(): Promise<void> {
 
   try {
     const result = await apiCall<SubmitResponse>('/api/v1/scan/submit', { method: 'POST', body: formData })
-
-    try {
-      const dxfFile = b64toFile(result.dxf, 'joint.dxf', 'application/dxf')
-      const imgFile = b64toFile(result.image, 'original.jpg', 'image/jpeg')
-      const contourFile = b64toFile(result.contour, 'contour.png', 'image/png')
-      const files = [dxfFile, imgFile, contourFile]
-
-      if (navigator.canShare?.({ files })) {
-        await navigator.share({
-          files,
-          title: 'Nouveau scan de joint',
-          text: 'Veuillez trouver ci-joint les documents du scan.',
-        })
-      } else {
-        for (const f of files) {
-          const url = URL.createObjectURL(f)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = f.name
-          a.click()
-          URL.revokeObjectURL(url)
-        }
-      }
-    } catch {
-      // Partage annulé ou non supporté — pas bloquant
-    }
-
     scanStore.setResultImage(result.contour)
+    scanStore.setResultDxf(result.dxf)
     router.push({ name: 'confirmation' })
   } catch {
     submitError.value = !navigator.onLine

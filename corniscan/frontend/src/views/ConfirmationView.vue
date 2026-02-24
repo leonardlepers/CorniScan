@@ -6,11 +6,36 @@
  * AC#2 : Récapitulatif dimensions + épaisseur depuis scanStore.
  * AC#3 : Bouton "Nouveau scan" → clearPhoto + clearResult + /camera.
  */
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useScanStore } from '@/stores/scanStore'
 
 const router = useRouter()
 const scanStore = useScanStore()
+
+const dxfUrl = ref<string | null>(null)
+const photoUrl = ref<string | null>(null)
+
+function b64toBlob(b64: string, mimeType: string): Blob {
+  const bytes = atob(b64)
+  const arr = new Uint8Array(bytes.length)
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+  return new Blob([arr], { type: mimeType })
+}
+
+onMounted(() => {
+  if (scanStore.resultDxfB64) {
+    dxfUrl.value = URL.createObjectURL(b64toBlob(scanStore.resultDxfB64, 'application/dxf'))
+  }
+  if (scanStore.photo) {
+    photoUrl.value = URL.createObjectURL(scanStore.photo)
+  }
+})
+
+onUnmounted(() => {
+  if (dxfUrl.value) URL.revokeObjectURL(dxfUrl.value)
+  if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
+})
 
 function handleNewScan(): void {
   scanStore.clearResult()
@@ -51,12 +76,9 @@ function handleNewScan(): void {
         </svg>
       </div>
 
-      <!-- AC#1 — Message succès + destinataire -->
+      <!-- AC#1 — Message succès -->
       <div class="success-header">
-        <h1 class="success-title">Scan envoyé !</h1>
-        <p class="success-recipient">
-          Transmis à <strong>info@cornille-sa.com</strong>
-        </p>
+        <h1 class="success-title">Scan validé !</h1>
       </div>
 
       <!-- AC#2 — Récapitulatif du scan -->
@@ -89,6 +111,16 @@ function handleNewScan(): void {
           alt="Image résultat annoté"
           class="result-image"
         />
+      </div>
+
+      <!-- Téléchargements -->
+      <div v-if="photoUrl || dxfUrl" class="download-actions">
+        <a v-if="photoUrl" :href="photoUrl" download="joint.jpg" class="download-btn">
+          Télécharger la photo
+        </a>
+        <a v-if="dxfUrl" :href="dxfUrl" download="joint.dxf" class="download-btn download-btn--accent">
+          Télécharger le DXF
+        </a>
       </div>
 
       <!-- AC#3 — Bouton nouveau scan -->
@@ -243,6 +275,48 @@ function handleNewScan(): void {
   width: 100%;
   height: auto;
   display: block;
+}
+
+/* ── Boutons téléchargement ──────────────────────── */
+.download-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  animation: fadeInUp 0.45s var(--ease-out) 0.22s both;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--btn-height);
+  padding: 0 2rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.download-btn:active {
+  transform: scale(0.97);
+}
+
+.download-btn--accent {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  box-shadow: var(--shadow-accent);
+}
+
+.download-btn--accent:active {
+  box-shadow: 0 6px 16px rgba(201, 123, 99, 0.2);
 }
 
 /* ── Bouton nouveau scan ─────────────────────────── */
