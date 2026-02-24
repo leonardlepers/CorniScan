@@ -33,4 +33,5 @@ users = Table(
         server_default=text("true"),
     ),
     Column("created_at", DateTime(timezone=True), server_default=text("NOW()")),
+    Column("last_login_at", DateTime(timezone=True), nullable=True),
 )

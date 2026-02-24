@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { apiCall } from '@/services/apiClient'
+import { apiCall, deleteUser, toggleAdminRole } from '@/services/apiClient'
 import { useAuthStore } from '@/stores/authStore'
 import AppHeader from '@/components/AppHeader.vue'
 
@@ -12,6 +12,7 @@ interface UserRow {
   is_active: boolean
   created_at: string | null
   force_password_change: boolean
+  last_login_at: string | null
 }
 
 // ── Liste ──────────────────────────────────────────────────────────────────
@@ -37,6 +38,17 @@ function formatDate(iso: string | null): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+  })
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -105,6 +117,38 @@ async function handleDeactivate(username: string) {
   }
 }
 
+// ── Suppression ──────────────────────────────────────────────────────────
+const actionError = ref<string | null>(null)
+const actioning = ref<string | null>(null)
+
+async function handleDelete(username: string) {
+  if (!confirm(`Supprimer définitivement le compte « ${username} » ?`)) return
+  actionError.value = null
+  actioning.value = username
+  try {
+    await deleteUser(username)
+    await loadUsers()
+  } catch (e: unknown) {
+    actionError.value = e instanceof Error ? e.message : 'Erreur inattendue'
+  } finally {
+    actioning.value = null
+  }
+}
+
+// ── Toggle rôle admin ────────────────────────────────────────────────────
+async function handleToggleAdmin(username: string) {
+  actionError.value = null
+  actioning.value = username
+  try {
+    await toggleAdminRole(username)
+    await loadUsers()
+  } catch (e: unknown) {
+    actionError.value = e instanceof Error ? e.message : 'Erreur inattendue'
+  } finally {
+    actioning.value = null
+  }
+}
+
 onMounted(loadUsers)
 </script>
 
@@ -169,6 +213,7 @@ onMounted(loadUsers)
           <p v-else-if="error" class="error-msg" role="alert">{{ error }}</p>
 
           <p v-if="deactivateError" class="error-msg" role="alert">{{ deactivateError }}</p>
+          <p v-if="actionError" class="error-msg" role="alert">{{ actionError }}</p>
 
           <div class="table-wrapper" v-if="!isLoading && !error">
             <table class="users-table" aria-label="Liste des comptes utilisateurs">
@@ -178,6 +223,7 @@ onMounted(loadUsers)
                   <th>Rôle</th>
                   <th>Statut</th>
                   <th>Créé le</th>
+                  <th>Dernier login</th>
                   <th>MDP à changer</th>
                   <th>Actions</th>
                 </tr>
@@ -194,8 +240,9 @@ onMounted(loadUsers)
                     </span>
                   </td>
                   <td>{{ formatDate(user.created_at) }}</td>
+                  <td>{{ formatDateTime(user.last_login_at) }}</td>
                   <td>{{ user.force_password_change ? 'Oui' : 'Non' }}</td>
-                  <td>
+                  <td class="actions-cell">
                     <button
                       v-if="user.is_active && user.username !== authStore.user?.username"
                       class="btn-deactivate"
@@ -204,10 +251,26 @@ onMounted(loadUsers)
                     >
                       {{ deactivating === user.username ? '…' : 'Désactiver' }}
                     </button>
+                    <button
+                      v-if="user.username !== authStore.user?.username"
+                      class="btn-toggle-admin"
+                      :disabled="actioning === user.username"
+                      @click="handleToggleAdmin(user.username)"
+                    >
+                      {{ user.role === 'admin' ? '→ Opérateur' : '→ Admin' }}
+                    </button>
+                    <button
+                      v-if="user.username !== authStore.user?.username"
+                      class="btn-delete"
+                      :disabled="actioning === user.username"
+                      @click="handleDelete(user.username)"
+                    >
+                      Supprimer
+                    </button>
                   </td>
                 </tr>
                 <tr v-if="users.length === 0">
-                  <td colspan="6" class="empty-msg">Aucun compte trouvé.</td>
+                  <td colspan="7" class="empty-msg">Aucun compte trouvé.</td>
                 </tr>
               </tbody>
             </table>
@@ -421,6 +484,13 @@ button:disabled {
   color: var(--color-danger);
 }
 
+.actions-cell {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .btn-deactivate {
   padding: 0.35rem 0.75rem;
   background: rgba(209, 73, 91, 0.12);
@@ -434,6 +504,38 @@ button:disabled {
 }
 
 .btn-deactivate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-toggle-admin {
+  padding: 0.35rem 0.75rem;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  border: 1px solid rgba(201, 123, 99, 0.35);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 0;
+}
+
+.btn-toggle-admin:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-delete {
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid rgba(209, 73, 91, 0.35);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 0;
+}
+
+.btn-delete:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

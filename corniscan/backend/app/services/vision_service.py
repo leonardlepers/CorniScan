@@ -35,7 +35,7 @@ import fitz  # pymupdf
 
 # Ratio largeur/hauteur d'une carte bancaire standard (85.6mm / 53.98mm)
 _CARD_RATIO = 85.6 / 53.98  # ≈ 1.585
-_RATIO_TOLERANCE = 0.35  # ±35 % de tolérance
+_RATIO_TOLERANCE = 0.12  # ±12 % de tolérance (filtre strict : seules les vraies cartes)
 _MIN_AREA_FRACTION = 0.04  # Le quadrilatère doit couvrir ≥ 4 % de l'image
 
 # Story 4.1 — constantes pipeline
@@ -430,33 +430,91 @@ def process_image(image_bytes: bytes) -> dict:
     }
 
 
-def generate_contour_png(image_bytes: bytes, contour_points: list[list[float]]) -> bytes:
-    """Génère un PNG avec le contour du joint superposé sur l'image originale (Story 5.2 — FR26).
+def generate_contour_png(
+    image_bytes: bytes,
+    contour_points: list[list[float]],
+    width_mm: float = 0.0,
+    height_mm: float = 0.0,
+    holes: list[dict] | None = None,
+) -> bytes:
+    """Génère un PNG annoté : masque carte, contour joint, bounding boxes et dimensions en mm.
 
     Args:
         image_bytes: Bytes JPEG de l'image originale.
-        contour_points: Points du contour normalisés [[x, y], ...] avec x,y ∈ [0,1].
+        contour_points: Contour du joint normalisé [[x, y], ...] avec x,y ∈ [0,1].
+        width_mm: Largeur du joint en mm (pour l'annotation texte).
+        height_mm: Hauteur du joint en mm (pour l'annotation texte).
+        holes: Liste des trous internes avec leurs contours et dimensions.
 
     Returns:
-        Bytes PNG de l'image avec le contour tracé en vert.
+        Bytes JPEG (qualité 100) de l'image pleine résolution avec toutes les annotations OpenCV.
 
     Raises:
         ValueError: Si l'image ne peut pas être décodée.
     """
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-
     if img is None:
         raise ValueError("Image invalide — impossible de décoder le JPEG.")
 
-    h, w = img.shape[:2]
-    pts = np.array(
-        [[int(pt[0] * w), int(pt[1] * h)] for pt in contour_points],
-        dtype=np.int32,
-    )
+    # Annotation sur l'image pleine résolution (zéro dégradation par resize)
+    canvas = img.copy()
+    h_c, w_c = canvas.shape[:2]
 
-    overlay = img.copy()
-    cv2.polylines(overlay, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+    # Épaisseur et taille de police adaptées à la résolution
+    font_scale = max(0.55, w_c / 2048)
+    line_thickness = max(2, int(font_scale * 2.5))
 
-    _, encoded = cv2.imencode(".png", overlay)
+    # ── Masque semi-transparent sur la carte détectée ──────────────────────
+    # Détection sur image normalisée pour fiabilité, coins remappés en pleine résolution
+    proc_canvas, scale_down = _resize_for_processing(img)
+    corners, _ = _find_card_corners(proc_canvas)
+    if corners is not None:
+        if scale_down < 1.0:
+            corners = corners / scale_down
+        mask_layer = canvas.copy()
+        card_pts = corners.reshape((-1, 1, 2)).astype(np.int32)
+        cv2.drawContours(mask_layer, [card_pts], 0, (50, 200, 80), -1)
+        canvas = cv2.addWeighted(canvas, 0.78, mask_layer, 0.22, 0)
+        cv2.drawContours(canvas, [card_pts], 0, (50, 220, 80), 2)
+
+    # ── Contour principal du joint ──────────────────────────────────────────
+    if contour_points:
+        pts = np.array(
+            [[int(pt[0] * w_c), int(pt[1] * h_c)] for pt in contour_points],
+            dtype=np.int32,
+        )
+        cv2.polylines(canvas, [pts], isClosed=True, color=(0, 255, 0), thickness=line_thickness)
+
+        # Bounding box + label dimensions globales
+        if width_mm > 0 and height_mm > 0 and len(pts) >= 2:
+            x, y, bw, bh = cv2.boundingRect(pts)
+            cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 210, 255), max(1, line_thickness - 1))
+            label = f"{width_mm:.1f} x {height_mm:.1f} mm"
+            ty = max(int(font_scale * 24), y - int(font_scale * 10))
+            cv2.putText(canvas, label, (x, ty), cv2.FONT_HERSHEY_SIMPLEX,
+                        font_scale, (0, 210, 255), line_thickness, cv2.LINE_AA)
+
+    # ── Trous internes ──────────────────────────────────────────────────────
+    if holes:
+        for i, hole in enumerate(holes):
+            h_pts_norm = hole.get("contour_points", [])
+            h_w_mm = hole.get("width_mm", 0.0)
+            h_h_mm = hole.get("height_mm", 0.0)
+            if not h_pts_norm:
+                continue
+            hp = np.array(
+                [[int(pt[0] * w_c), int(pt[1] * h_c)] for pt in h_pts_norm],
+                dtype=np.int32,
+            )
+            cv2.polylines(canvas, [hp], isClosed=True, color=(0, 120, 255), thickness=max(1, line_thickness - 1))
+            if len(hp) >= 2:
+                hx, hy, hw, hh = cv2.boundingRect(hp)
+                cv2.rectangle(canvas, (hx, hy), (hx + hw, hy + hh), (50, 170, 255), 1)
+                hole_label = f"Trou {i + 1}: {h_w_mm:.1f}x{h_h_mm:.1f}mm"
+                hty = max(int(font_scale * 20), hy - int(font_scale * 8))
+                cv2.putText(canvas, hole_label, (hx, hty), cv2.FONT_HERSHEY_SIMPLEX,
+                            font_scale * 0.8, (50, 170, 255), max(1, line_thickness - 1), cv2.LINE_AA)
+
+    _, encoded = cv2.imencode('.jpg', canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
     return encoded.tobytes()

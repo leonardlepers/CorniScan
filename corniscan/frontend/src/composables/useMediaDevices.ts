@@ -33,7 +33,7 @@ export function useMediaDevices() {
     try {
       // AC#1 — caméra arrière, portrait
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 4096 } },
         audio: false,
       })
 

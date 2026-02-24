@@ -45,6 +45,9 @@ export const useScanStore = defineStore('scan', () => {
   // Trous internes détectés
   const holes = ref<HoleDimensions[]>([])
 
+  // Image résultat annotée (PNG base64) générée par /submit
+  const resultImageB64 = ref<string | null>(null)
+
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -70,12 +73,17 @@ export const useScanStore = defineStore('scan', () => {
     thickness.value = value
   }
 
+  function setResultImage(b64: string): void {
+    resultImageB64.value = b64
+  }
+
   function clearResult(): void {
     contour.value = []
     dimensions.value = null
     calibrationWarning.value = false
     thickness.value = null
     holes.value = []
+    resultImageB64.value = null
   }
 
   return {
@@ -90,8 +98,10 @@ export const useScanStore = defineStore('scan', () => {
     calibrationWarning,
     thickness,
     holes,
+    resultImageB64,
     setResult,
     setThickness,
+    setResultImage,
     clearResult,
   }
 })

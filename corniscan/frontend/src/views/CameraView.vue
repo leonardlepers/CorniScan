@@ -3,7 +3,6 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import CardDetectionOverlay from '@/components/camera/CardDetectionOverlay.vue'
-import CaptureChecklist from '@/components/camera/CaptureChecklist.vue'
 import { useCardDetection } from '@/composables/useCardDetection'
 import { useMediaDevices } from '@/composables/useMediaDevices'
 import { usePwaInstall } from '@/composables/usePwaInstall'
@@ -43,13 +42,6 @@ onMounted(async () => {
   }
 })
 
-// Story 3.3 — checklist qualité
-const allChecked = ref(false)
-
-function onChecklistUpdate(value: boolean) {
-  allChecked.value = value
-}
-
 // Import fichier (image ou PDF) — alternative à la caméra
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -78,7 +70,7 @@ async function capture(): Promise<void> {
 
   // AC#3 — canvas.drawImage capture les pixels affichés (orientation déjà correcte, sans EXIF)
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/jpeg', 0.92)
+    canvas.toBlob(resolve, 'image/jpeg', 1.0)
   })
 
   if (!blob) return
@@ -198,20 +190,16 @@ async function retakePhoto(): Promise<void> {
       <!-- Story 3.2 — indicateur détection carte (AC#2, AC#3) -->
       <CardDetectionOverlay v-if="!isLoading && !error" :card-detected="cardDetected" />
 
-      <!-- Story 3.3 — checklist qualité + bouton capture (AC#1, #2, #3, #4) -->
+      <!-- Bouton capture + import -->
       <div
         v-if="!isLoading && !error"
         class="camera-controls"
       >
-        <CaptureChecklist @update:all-checked="onChecklistUpdate" />
-
         <!-- Bouton capture style iOS — cercle -->
         <div class="capture-btn-wrapper">
           <button
-            class="capture-btn"
-            :class="{ 'capture-btn--ready': allChecked }"
-            :disabled="!allChecked"
-            :aria-label="allChecked ? 'Capturer la photo' : 'Cochez les deux cases avant de capturer'"
+            class="capture-btn capture-btn--ready"
+            aria-label="Capturer la photo"
             @click="capture"
           >
             <span class="capture-btn-inner"></span>
@@ -443,16 +431,6 @@ async function retakePhoto(): Promise<void> {
 
 .capture-btn--ready:active .capture-btn-inner {
   transform: scale(0.88);
-}
-
-/* Désactivé */
-.capture-btn:disabled {
-  border-color: rgba(255, 255, 255, 0.28);
-  cursor: not-allowed;
-}
-
-.capture-btn:disabled .capture-btn-inner {
-  background: rgba(255, 255, 255, 0.22);
 }
 
 /* ── Aperçu capture ──────────────────────────────── */

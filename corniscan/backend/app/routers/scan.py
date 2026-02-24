@@ -1,17 +1,16 @@
 # Routeur scan — Story 3.2 + Story 4.1 + Story 4.5 + Epic 5
 # POST /api/v1/scan/detect-card   → détection carte live (synchrone, thread pool)
 # POST /api/v1/scan/process       → pipeline complet (Stories 4.x)
-# POST /api/v1/scan/submit        → DXF + PNG contour + email Resend (Stories 4.5, 5.1, 5.2)
+# POST /api/v1/scan/submit        → DXF + PNG contour encodés base64 (partage natif frontend)
 
 import asyncio
+import base64
 import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from app.core.config import settings
 from app.core.security import get_current_user
 from app.services.dxf_service import generate_dxf
-from app.services.email_service import send_scan_email
 from app.services.vision_service import detect_card, generate_contour_png, pdf_to_image_bytes, process_image
 
 router = APIRouter(prefix="/api/v1/scan", tags=["scan"])
@@ -104,15 +103,15 @@ def submit_scan_endpoint(
     thickness: float | None = Form(None),
     calibration_warning: bool = Form(False),
     hole_contours: str = Form("[]"),
-    current_user: dict = Depends(get_current_user),
+    _: dict = Depends(get_current_user),
 ) -> dict:
-    """Pipeline complet de livraison : DXF R2018 + PNG contour + email Resend (Stories 4.5, 5.1, 5.2 — FR24–27).
+    """Pipeline de livraison : génère DXF R2018 + PNG contour et les retourne en base64 (Stories 4.5, 5.1, 5.2).
 
     Exécuté en `def` synchrone (thread pool Uvicorn).
     Aucune donnée n'est persistée côté serveur (NFR-S4).
 
     Returns:
-        {"status": "accepted"}
+        {"dxf": str, "image": str, "contour": str}  — fichiers encodés en base64
     """
     image_bytes = file.file.read()
 
@@ -148,31 +147,15 @@ def submit_scan_endpoint(
 
     # Story 5.2 — PNG contour superposé
     try:
-        png_bytes = generate_contour_png(image_bytes, points)
+        png_bytes = generate_contour_png(image_bytes, points, width_mm, height_mm, holes_list or [])
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
 
-    # Story 5.2 — envoi email Resend (retry intégré dans send_scan_email)
-    try:
-        send_scan_email(
-            dxf_bytes=dxf_bytes,
-            png_bytes=png_bytes,
-            jpeg_bytes=image_bytes,
-            width_mm=width_mm,
-            height_mm=height_mm,
-            thickness=thickness,
-            calibration_warning=calibration_warning,
-            operator_name=current_user["username"],
-            api_key=settings.resend_api_key,
-            from_email=settings.resend_from_email,
-        )
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-
-    return {"status": "accepted"}
+    return {
+        "dxf": base64.b64encode(dxf_bytes).decode(),
+        "image": base64.b64encode(image_bytes).decode(),
+        "contour": base64.b64encode(png_bytes).decode(),
+    }

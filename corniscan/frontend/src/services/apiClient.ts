@@ -40,5 +40,15 @@ export async function apiCall<T>(endpoint: string, options?: RequestInit): Promi
     throw new Error(error.detail ?? 'Erreur inattendue')
   }
 
+  if (response.status === 204) return undefined as T
+
   return response.json()
+}
+
+export function deleteUser(username: string): Promise<void> {
+  return apiCall(`/api/v1/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' })
+}
+
+export function toggleAdminRole(username: string): Promise<{ username: string; role: string }> {
+  return apiCall(`/api/v1/admin/users/${encodeURIComponent(username)}/admin`, { method: 'PATCH' })
 }

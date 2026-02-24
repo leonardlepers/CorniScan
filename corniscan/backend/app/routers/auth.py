@@ -2,6 +2,8 @@
 # POST /api/v1/auth/token             → login → JWT
 # POST /api/v1/auth/change-password   → changement mot de passe forcé
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -52,6 +54,13 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Ce compte a été désactivé. Contactez votre administrateur.",
         )
+
+    await session.execute(
+        update(users)
+        .where(users.c.username == user_row.username)
+        .values(last_login_at=datetime.now(timezone.utc))
+    )
+    await session.commit()
 
     token = create_access_token(
         {

@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import insert, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,7 @@ async def list_users(
             users.c.is_active,
             users.c.created_at,
             users.c.force_password_change,
+            users.c.last_login_at,
         ).order_by(users.c.created_at.asc())
     )
     rows = result.fetchall()
@@ -58,6 +59,7 @@ async def list_users(
             "is_active": row.is_active,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "force_password_change": row.force_password_change,
+            "last_login_at": row.last_login_at.isoformat() if row.last_login_at else None,
         }
         for row in rows
     ]
@@ -120,6 +122,59 @@ async def create_user(
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "force_password_change": row.force_password_change,
     }
+
+
+@router.delete("/users/{username}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    username: str,
+    current_admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """Supprime définitivement un compte utilisateur."""
+    if current_admin["username"] == username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Impossible de supprimer votre propre compte.",
+        )
+    result = await session.execute(
+        select(users.c.username).where(users.c.username == username)
+    )
+    if result.fetchone() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Utilisateur '{username}' introuvable.",
+        )
+    await session.execute(delete(users).where(users.c.username == username))
+    await session.commit()
+
+
+@router.patch("/users/{username}/admin")
+async def toggle_admin_role(
+    username: str,
+    current_admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Bascule le rôle d'un utilisateur entre 'operator' et 'admin'."""
+    if current_admin["username"] == username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Impossible de modifier votre propre rôle.",
+        )
+    result = await session.execute(
+        select(users.c.username, users.c.role).where(users.c.username == username)
+    )
+    user_row = result.fetchone()
+    if user_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Utilisateur '{username}' introuvable.",
+        )
+    new_role = "operator" if user_row.role == "admin" else "admin"
+    await session.execute(
+        update(users).where(users.c.username == username).values(role=new_role)
+    )
+    await session.commit()
+    return {"username": username, "role": new_role}
 
 
 @router.patch("/users/{username}/deactivate")

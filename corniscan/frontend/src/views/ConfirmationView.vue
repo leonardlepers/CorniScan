@@ -82,6 +82,15 @@ function handleNewScan(): void {
         </dl>
       </div>
 
+      <!-- Image résultat annotée (OpenCV) -->
+      <div v-if="scanStore.resultImageB64" class="result-image-wrapper">
+        <img
+          :src="`data:image/jpeg;base64,${scanStore.resultImageB64}`"
+          alt="Image résultat annoté"
+          class="result-image"
+        />
+      </div>
+
       <!-- AC#3 — Bouton nouveau scan -->
       <button class="new-scan-btn" @click="handleNewScan">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -218,6 +227,22 @@ function handleNewScan(): void {
   font-weight: 700;
   color: var(--color-text);
   letter-spacing: -0.01em;
+}
+
+/* ── Image résultat annotée ──────────────────────── */
+.result-image-wrapper {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  animation: fadeInUp 0.45s var(--ease-out) 0.2s both;
+}
+
+.result-image {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 /* ── Bouton nouveau scan ─────────────────────────── */
